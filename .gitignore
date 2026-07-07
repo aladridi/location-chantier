@@ -1,0 +1,470 @@
+# ============================================
+# Fichier .gitignore pour projet PHP 8.4
+# Location de matériel de chantier
+# ============================================
+
+# ============================================
+# 1. Dépendances PHP (Composer)
+# ============================================
+/vendor/
+composer.lock
+composer.phar
+
+# ============================================
+# 2. Environnement et configuration
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.*.backup
+.env.production
+.env.staging
+.env.testing
+
+# Fichiers de configuration sensibles
+/config/config.local.php
+/config/parameters.php
+/config/secrets.php
+
+# ============================================
+# 3. Cache et logs
+# ============================================
+/cache/
+/logs/
+/var/cache/
+/var/logs/
+/var/sessions/
+/var/tmp/
+*.log
+*.cache
+*.tmp
+*.temp
+
+# Logs spécifiques
+access.log
+error.log
+debug.log
+app.log
+*.log.*
+
+# ============================================
+# 4. IDE et éditeurs de texte
+# ============================================
+
+# PHPStorm / IntelliJ IDEA
+/.idea/
+/*.iml
+/.phpstorm.meta/
+/.idea/workspace.xml
+/.idea/tasks.xml
+/.idea/dictionaries/
+/.idea/dataSources.ids
+/.idea/dataSources.xml
+/.idea/sqlDataSources.xml
+/.idea/caches/build_file_checksums.ser
+/.idea/httpRequests/
+/.idea/php.xml
+/.idea/phpunit.xml
+/.idea/vcs.xml
+/.idea/modules.xml
+/.idea/*.iml
+
+# Visual Studio Code
+/.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+.history/
+*.vsix
+/.vscode/launch.json
+/.vscode/tasks.json
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+.sublime/
+
+# Atom
+.atom/
+*.atom-project
+
+# Eclipse
+/.project
+/.classpath
+/.settings/
+*.buildpath
+*.project
+
+# NetBeans
+/nbproject/
+/*.nbproject
+
+# Vim
+*.swp
+*.swo
+*.un~
+*.~*
+.*.swp
+.*.swo
+
+# ============================================
+# 5. OS fichiers système
+# ============================================
+
+# macOS
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Linux
+*~
+.directory
+.*.swp
+.*.swo
+
+# ============================================
+# 6. Fichiers de test et de couverture
+# ============================================
+
+/phpunit.xml
+/phpunit.xml.dist
+/phpunit.phar
+/tests/_output/
+/tests/_support/_generated/
+/tests/coverage/
+/.phpunit.result.cache
+/build/
+/clover.xml
+/coverage/
+/coverage-html/
+/coverage.clover
+/coverage.xml
+/junit.xml
+/phpunit-report.xml
+/testdox.html
+/testdox.txt
+
+# ============================================
+# 7. Outils de qualité de code
+# ============================================
+
+# PHP_CodeSniffer
+/phpcs.xml
+/phpcs.xml.dist
+/.phpcs-cache
+
+# PHP-CS-Fixer
+/.php_cs
+/.php_cs.dist
+/.php-cs-fixer.cache
+/php-cs-fixer.phar
+
+# PHPStan
+/phpstan.neon
+/phpstan.neon.dist
+/.phpstan-result-cache
+
+# Psalm
+/psalm.xml
+/psalm.xml.dist
+/psalm-report.json
+
+# PHP Mess Detector
+/phpmd.xml
+/phpmd.xml.dist
+
+# ============================================
+# 8. Outils de build et déploiement
+# ============================================
+
+# Docker
+/docker-compose.override.yml
+/docker-compose.local.yml
+/.dockerignore
+/Dockerfile
+/docker/
+!docker/Dockerfile
+.docker/
+*.docker
+
+# CI/CD
+/.github/workflows/*.local.yml
+/.gitlab-ci.local.yml
+/.travis.yml.local
+/buildpacks/
+
+# Makefile
+Makefile.local
+
+# ============================================
+# 9. Assets et fichiers uploadés
+# ============================================
+
+# Uploads
+/public/uploads/
+/public/media/
+/public/images/uploads/
+/public/files/
+/uploads/
+/media/
+/files/
+/import/
+/export/
+/temp/
+
+# Fonts et assets générés
+/public/assets/
+/public/build/
+/public/bundles/
+/public/css/generated/
+/public/js/generated/
+/public/minified/
+
+# ============================================
+# 10. Base de données
+# ============================================
+
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+
+# Dumps SQL
+*.sql
+*.dump
+*.backup
+/*.sql.gz
+/*.sql.zip
+
+# Migrations générées (si non versionnées)
+/migrations/version_*.php
+/migrations/*.sql.generated
+
+# Doctrine
+/doctrine_migrations/
+/doctrine_schema.dump
+
+# ============================================
+# 11. Archives et packages
+# ============================================
+
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.jar
+*.war
+*.ear
+*.phar
+
+# ============================================
+# 12. Dépendances JavaScript/Node.js (si utilisé)
+# ============================================
+
+/node_modules/
+/npm-debug.log
+/npm-debug.log.*
+/yarn-debug.log*
+/yarn-error.log*
+/package-lock.json
+/yarn.lock
+/.pnpm-debug.log
+/.pnpm-store/
+
+# ============================================
+# 13. Outils divers
+# ============================================
+
+# Composer local
+/composer.lock
+
+# Téléchargements temporaires
+/tmp/
+/downloads/
+/var/tmp/
+
+# Profiling
+/cachegrind.out*
+/xdebug.*.log
+/xdebug.*.trace
+/*.prof
+
+# Mail catcher
+/mailhog/
+/mailcatcher/
+
+# Sessions PHP
+/sessions/
+
+# ============================================
+# 14. Fichiers spécifiques au projet
+# ============================================
+
+# Fichiers de seed (données de test)
+/database/seeds/*.local.php
+/data/fixtures/
+
+# Documentation générée
+/docs/api/
+/docs/coverage/
+/docs/html/
+
+# Backups du projet
+*.backup.*
+*-backup
+backup_*/
+
+# Fichiers de verrouillage du framework maison
+/.lock
+/.pid
+
+# ============================================
+# 15. Fichiers de développement
+# ============================================
+
+# Environnement de développement local
+/.env.dev
+/.env.local.dev
+/.env.test
+
+# Fichiers de routeur Symfony (si utilisé plus tard)
+/.routing.yml.local
+
+# Fichiers de configuration Apache/Nginx
+/.htaccess.local
+/nginx.conf.local
+/vhost.conf.local
+
+# ============================================
+# 16. Fichiers de sécurité
+# ============================================
+
+# Certificats SSL
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+*.csr
+*.cert
+*.private
+*.pub
+
+# ============================================
+# EXCEPTIONS (fichiers à garder malgré tout)
+# ============================================
+
+# Garder .gitkeep dans les dossiers vides
+!.gitkeep
+!.keep
+
+# Garder les fichiers d'exemple d'environnement
+!.env.example
+!.env.dist
+!.env.testing.example
+
+# Garder les fichiers de configuration d'exemple
+!/config/*.example.php
+!/config/*.dist.php
+
+# Garder les fixtures d'exemple
+!/data/fixtures/*.example.*
+
+# ============================================
+# 17. Fichiers propres à ton projet
+# ============================================
+
+# Fichiers de debug du projet
+/project.log
+/project.debug
+
+# Téléchargements du projet
+/downloads/
+
+# Fichiers temporaires du routeur
+/router.cache
+/routes.cache
+
+# Profilage personnalisé
+/profiling/
+/*.profile
+
+# ============================================
+# 18. Messages et documents temporaires
+# ============================================
+
+# Documents de travail
+/*.md.tmp
+/*.txt.tmp
+/*.doc.tmp
+/todo.md.local
+/notes.md.local
+
+# ============================================
+# 19. Fichiers de session et authentification
+# ============================================
+
+/sessions/
+/session/
+/sess_*
+
+# ============================================
+# 20. Autres
+# ============================================
+
+# Fichiers de verrouillage générés par PHP
+*.lck
+*.lock
+
+# Fichiers de configuration de PHP
+/php.ini.local
+/php-cli.ini.local
+
+# Fichiers de déploiement
+/deploy/
+/deployments/
+/deployment/
+
+# Fichiers de configuration d'outils
+/*.tool
+/*.tools
+/.tool-versions
+
+# Histoire de terminal
+/.bash_history
+/.zsh_history
+/.history
+
+# Fichiers de récupération de données
+/recovery/
+/restore/
+
+# Fichiers de cache de bibliothèque
+/.cache/
