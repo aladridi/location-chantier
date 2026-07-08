@@ -226,9 +226,6 @@ Makefile.local
 # ============================================
 
 # Uploads
-/public/uploads/
-/public/media/
-/public/images/uploads/
 /public/files/
 /uploads/
 /media/
@@ -238,12 +235,8 @@ Makefile.local
 /temp/
 
 # Fonts et assets générés
-/public/assets/
-/public/build/
-/public/bundles/
-/public/css/generated/
-/public/js/generated/
-/public/minified/
+/public/dist/
+
 
 # ============================================
 # 10. Base de données
