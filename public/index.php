@@ -24,7 +24,7 @@ $routesConfig($router);
 // Création de la requête
 $request = new Request();
 
-// ✅ Récupérer l'URI sans les paramètres GET
+// Récupérer l'URI sans les paramètres GET
 $uri = strtok($request->getUri(), '?');
 
 // ✅ Si c'est une route API, on la traite normalement
@@ -38,21 +38,16 @@ if (str_starts_with($uri, '/api/')) {
         exit;
     }
 
-    // Instanciation du contrôleur
     $controllerClass = $route->getController();
     $controller = $container->get($controllerClass);
-
-    // Appel de la méthode
     $method = $route->getMethod();
     $parameters = $route->getParameters();
 
     try {
         $response = $controller->$method($request, ...$parameters);
-
         if (!$response instanceof Response) {
             $response = new Response($response);
         }
-
         $response->send();
         exit;
     } catch (\Exception $e) {

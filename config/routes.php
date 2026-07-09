@@ -1,32 +1,38 @@
 <?php
 use App\Core\Router\Router;
-use App\Controller\RentalController;
+use App\Controller\AuthApiController;
 use App\Controller\EquipmentController;
-use App\Controller\VueController;
-use App\Controller\DashboardController;
-
+use App\Controller\ClientController;
+use App\Controller\RentalController;
 
 return function (Router $router) {
+    // ============================================
+    // AUTHENTIFICATION API
+    // ============================================
+    $router->addRoute('/api/auth/login', AuthApiController::class, 'login', 'POST');
+    $router->addRoute('/api/auth/register', AuthApiController::class, 'register', 'POST');
+    $router->addRoute('/api/auth/me', AuthApiController::class, 'me', 'GET');
+    $router->addRoute('/api/auth/logout', AuthApiController::class, 'logout', 'POST');
 
-    // Routes Vue (UI)
-    $router->addRoute('/', VueController::class, 'index', 'GET');
-    $router->addRoute('/equipment', VueController::class, 'equipment', 'GET');
-    $router->addRoute('/equipment/create', VueController::class, 'equipment', 'GET');
-    $router->addRoute('/equipment/{id}/edit', VueController::class, 'equipment', 'GET');
-    $router->addRoute('/clients', VueController::class, 'clients', 'GET');
-    $router->addRoute('/clients/create', VueController::class, 'clients', 'GET');
-    $router->addRoute('/clients/{id}/edit', VueController::class, 'clients', 'GET');
-    $router->addRoute('/rentals', VueController::class, 'rentals', 'GET');
-    $router->addRoute('/rentals/create', VueController::class, 'rentals', 'GET');
-    $router->addRoute('/rentals/{id}', VueController::class, 'rentals', 'GET');
+    // ============================================
+    // API PROTÉGÉES
+    // ============================================
+    $router->addRoute('/api/equipment', EquipmentController::class, 'list', 'GET');
+    $router->addRoute('/api/equipment/stats', EquipmentController::class, 'stats', 'GET');
+    $router->addRoute('/api/equipment', EquipmentController::class, 'create', 'POST');
+    $router->addRoute('/api/equipment/{id}', EquipmentController::class, 'update', 'PUT');
+    $router->addRoute('/api/equipment/{id}', EquipmentController::class, 'delete', 'DELETE');
 
-    // Routes API
+    $router->addRoute('/api/clients', ClientController::class, 'list', 'GET');
+    $router->addRoute('/api/clients', ClientController::class, 'create', 'POST');
+    $router->addRoute('/api/clients/{id}', ClientController::class, 'update', 'PUT');
+    $router->addRoute('/api/clients/{id}', ClientController::class, 'delete', 'DELETE');
+
     $router->addRoute('/api/rentals', RentalController::class, 'list', 'GET');
-    $router->addRoute('/api/rentals/{id}', RentalController::class, 'show', 'GET');
+    $router->addRoute('/api/rentals/stats', RentalController::class, 'stats', 'GET');
+    $router->addRoute('/api/rentals/recent', RentalController::class, 'recent', 'GET');
+    $router->addRoute('/api/rentals/monthly-revenue', RentalController::class, 'monthlyRevenue', 'GET');
     $router->addRoute('/api/rentals', RentalController::class, 'create', 'POST');
     $router->addRoute('/api/rentals/{id}/return', RentalController::class, 'return', 'POST');
-
-    $router->addRoute('/api/equipment', EquipmentController::class, 'list', 'GET');
-    $router->addRoute('/api/equipment', EquipmentController::class, 'create', 'POST');
-    $router->addRoute('/api/equipment/{id}', EquipmentController::class, 'show', 'GET');
+    $router->addRoute('/api/rentals/estimate', RentalController::class, 'estimate', 'GET');
 };
