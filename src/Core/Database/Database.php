@@ -15,7 +15,22 @@ class Database implements DatabaseInterface
             $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            throw new \RuntimeException("Database connection failed: " . $e->getMessage());
+            // ✅ Message d'erreur plus détaillé
+            $errorMsg = "Database connection failed: " . $e->getMessage();
+            $errorMsg .= "\n\n📝 Vérifiez votre configuration :";
+            $errorMsg .= "\n   - DSN: $dsn";
+            $errorMsg .= "\n   - Utilisateur: $username";
+
+            // Conseils spécifiques
+            if (strpos($e->getMessage(), 'No such file or directory') !== false) {
+                $errorMsg .= "\n\n🔧 Conseils :";
+                $errorMsg .= "\n   1. Vérifiez que MySQL/MAMP est démarré";
+                $errorMsg .= "\n   2. Vérifiez le socket MySQL dans votre .env";
+                $errorMsg .= "\n   3. Essayez avec DB_HOST=127.0.0.1";
+                $errorMsg .= "\n   4. Sur MAMP, le socket est souvent : /Applications/MAMP/tmp/mysql/mysql.sock";
+            }
+
+            throw new \RuntimeException($errorMsg);
         }
     }
 
