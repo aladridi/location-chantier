@@ -7,13 +7,15 @@ use App\Core\Router\Router;
 
 // Repositories
 use App\Repository\EquipmentRepository;
-use App\Repository\EquipmentRepositoryInterface;
 use App\Repository\ClientRepository;
 use App\Repository\RentalRepository;
-use App\Repository\RentalRepositoryInterface;
+use App\Repository\UserRepository;
 
 // Services
 use App\Service\RentalService;
+use App\Service\Auth\AuthService;
+use App\Service\Auth\PasswordHasher;
+use App\Service\Auth\SessionManager;
 
 // Pricing Strategies
 use App\Service\PricingStrategy\DailyPricing;
@@ -29,13 +31,6 @@ use App\Service\PricingStrategy\Collection\PricingStrategyCollection;
 // Observers
 use App\Observer\MaintenanceAlert;
 use App\Observer\RentalNotification;
-
-
-use App\Service\Auth\AuthService;
-use App\Service\Auth\PasswordHasher;
-use App\Service\Auth\SessionManager;
-use App\Repository\UserRepository;
-use App\Middleware\AuthMiddleware;
 
 return function (Container $container) {
     // ============================================
@@ -53,12 +48,28 @@ return function (Container $container) {
     // ============================================
     // 2. SERVICES DE BASE (CORE)
     // ============================================
+
+    // ✅ Database - avec construction adaptée à l'environnement
     $container->set(Database::class, function ($c) {
         $config = $c->getParameter('database.config');
+
+        // ✅ Construction du DSN adapté
+        $driver = $config['driver'] ?? 'mysql';
+        $host = $config['host'] ?? '127.0.0.1';
+        $port = $config['port'] ?? '3306';
+        $database = $config['database'] ?? 'location_chantier';
+
+        // ✅ Vérifier si un socket est spécifié
+        if (isset($config['socket']) && !empty($config['socket']) && file_exists($config['socket'])) {
+            $dsn = "$driver:unix_socket={$config['socket']};dbname=$database;charset=utf8mb4";
+        } else {
+            $dsn = "$driver:host=$host;port=$port;dbname=$database;charset=utf8mb4";
+        }
+
         return new Database(
-            $config['dsn'],
-            $config['username'],
-            $config['password']
+            $dsn,
+            $config['username'] ?? 'root',
+            $config['password'] ?? ''
         );
     });
 
@@ -70,39 +81,9 @@ return function (Container $container) {
         return new EventDispatcher();
     });
 
-
-    // ============================================
-    // SERVICES D'AUTHENTIFICATION
-    // ============================================
-
-    $container->set(SessionManager::class, function () {
-        return new SessionManager();
-    });
-
-    $container->set(PasswordHasher::class, function () {
-        return new PasswordHasher();
-    });
-
-    $container->set(UserRepository::class, function ($c) {
-        return new UserRepository($c->get(Database::class));
-    });
-
-    $container->set(AuthService::class, function ($c) {
-        return new AuthService(
-            $c->get(UserRepository::class),
-            $c->get(PasswordHasher::class),
-            $c->get(SessionManager::class)
-        );
-    });
-
-    $container->set(AuthMiddleware::class, function ($c) {
-        return new AuthMiddleware($c->get(AuthService::class));
-    });
-
     // ============================================
     // 3. REPOSITORIES
     // ============================================
-    // Enregistrer les classes concrètes
     $container->set(EquipmentRepository::class, function ($c) {
         return new EquipmentRepository($c->get(Database::class));
     });
@@ -115,17 +96,31 @@ return function (Container $container) {
         return new RentalRepository($c->get(Database::class));
     });
 
-    // ✅ AJOUTÉ : Alias pour les interfaces
-    $container->set(EquipmentRepositoryInterface::class, function ($c) {
-        return $c->get(EquipmentRepository::class);
-    });
-
-    $container->set(RentalRepositoryInterface::class, function ($c) {
-        return $c->get(RentalRepository::class);
+    $container->set(UserRepository::class, function ($c) {
+        return new UserRepository($c->get(Database::class));
     });
 
     // ============================================
-    // 4. STRATÉGIES DE PRIX INDIVIDUELLES
+    // 4. SERVICES D'AUTHENTIFICATION
+    // ============================================
+    $container->set(SessionManager::class, function () {
+        return new SessionManager();
+    });
+
+    $container->set(PasswordHasher::class, function () {
+        return new PasswordHasher();
+    });
+
+    $container->set(AuthService::class, function ($c) {
+        return new AuthService(
+            $c->get(UserRepository::class),
+            $c->get(PasswordHasher::class),
+            $c->get(SessionManager::class)
+        );
+    });
+
+    // ============================================
+    // 5. STRATÉGIES DE PRIX
     // ============================================
     $container->set(DailyPricing::class, function () {
         return new DailyPricing();
@@ -152,7 +147,7 @@ return function (Container $container) {
     });
 
     // ============================================
-    // 5. COLLECTION DES STRATÉGIES
+    // 6. COLLECTION DES STRATÉGIES
     // ============================================
     $container->set(PricingStrategyCollection::class, function ($c) {
         $strategies = [
@@ -174,7 +169,7 @@ return function (Container $container) {
     });
 
     // ============================================
-    // 6. CALCULATEUR DE PRIX
+    // 7. CALCULATEUR DE PRIX
     // ============================================
     $container->set(PriceCalculator::class, function ($c) {
         $collection = $c->get(PricingStrategyCollection::class);
@@ -182,19 +177,19 @@ return function (Container $container) {
     });
 
     // ============================================
-    // 7. SERVICE PRINCIPAL
+    // 8. SERVICE PRINCIPAL
     // ============================================
     $container->set(RentalService::class, function ($c) {
         return new RentalService(
-            $c->get(EquipmentRepositoryInterface::class),  // ✅ Utiliser l'interface
-            $c->get(RentalRepositoryInterface::class),      // ✅ Utiliser l'interface
+            $c->get(EquipmentRepository::class),
+            $c->get(RentalRepository::class),
             $c->get(PriceCalculator::class),
             $c->get(EventDispatcher::class)
         );
     });
 
     // ============================================
-    // 8. OBSERVATEURS
+    // 9. OBSERVATEURS
     // ============================================
     $container->set(MaintenanceAlert::class, function () {
         return new MaintenanceAlert();
@@ -205,7 +200,7 @@ return function (Container $container) {
     });
 
     // ============================================
-    // 9. ENREGISTREMENT DES OBSERVATEURS
+    // 10. ENREGISTREMENT DES OBSERVATEURS
     // ============================================
     $eventDispatcher = $container->get(EventDispatcher::class);
 
@@ -230,7 +225,7 @@ return function (Container $container) {
     );
 
     // ============================================
-    // 10. DÉBOGAGE
+    // 11. DÉBOGAGE
     // ============================================
     if ($container->getParameter('app.debug')) {
         $eventDispatcher->addListener(
