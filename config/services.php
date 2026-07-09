@@ -30,6 +30,13 @@ use App\Service\PricingStrategy\Collection\PricingStrategyCollection;
 use App\Observer\MaintenanceAlert;
 use App\Observer\RentalNotification;
 
+
+use App\Service\Auth\AuthService;
+use App\Service\Auth\PasswordHasher;
+use App\Service\Auth\SessionManager;
+use App\Repository\UserRepository;
+use App\Middleware\AuthMiddleware;
+
 return function (Container $container) {
     // ============================================
     // 1. PARAMÈTRES
@@ -61,6 +68,35 @@ return function (Container $container) {
 
     $container->set(EventDispatcher::class, function () {
         return new EventDispatcher();
+    });
+
+
+    // ============================================
+    // SERVICES D'AUTHENTIFICATION
+    // ============================================
+
+    $container->set(SessionManager::class, function () {
+        return new SessionManager();
+    });
+
+    $container->set(PasswordHasher::class, function () {
+        return new PasswordHasher();
+    });
+
+    $container->set(UserRepository::class, function ($c) {
+        return new UserRepository($c->get(Database::class));
+    });
+
+    $container->set(AuthService::class, function ($c) {
+        return new AuthService(
+            $c->get(UserRepository::class),
+            $c->get(PasswordHasher::class),
+            $c->get(SessionManager::class)
+        );
+    });
+
+    $container->set(AuthMiddleware::class, function ($c) {
+        return new AuthMiddleware($c->get(AuthService::class));
     });
 
     // ============================================
