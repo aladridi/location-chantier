@@ -147,6 +147,42 @@ class EquipmentController
         }
     }
 
+    // ✅ AJOUT DE LA MÉTHODE stats()
+    public function stats(Request $request): Response
+    {
+        try {
+            // Statistiques générales
+            $stats = $this->repository->getStatistics();
+
+            // Statistiques par catégorie
+            $byCategory = $this->repository->countByCategory();
+
+            // Équipements nécessitant maintenance
+            $needsMaintenance = $this->repository->findNeedingMaintenance(90);
+
+            // Équipements disponibles
+            $available = $this->repository->findAvailable();
+
+            return (new Response())->json([
+                'success' => true,
+                'data' => [
+                    'total' => (int) ($stats['total'] ?? 0),
+                    'available' => (int) ($stats['available'] ?? 0),
+                    'rented' => (int) ($stats['rented'] ?? 0),
+                    'needs_maintenance' => count($needsMaintenance),
+                    'categories' => (int) ($stats['categories'] ?? 0),
+                    'avg_daily_rate' => (float) ($stats['avg_daily_rate'] ?? 0),
+                    'by_category' => $byCategory,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function statistics(Request $request): Response
     {
         $stats = $this->repository->getStatistics();
