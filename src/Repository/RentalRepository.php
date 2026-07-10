@@ -15,7 +15,7 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
     }
 
     /**
-     * Trouve les locations actives
+     * Trouve les locations actives (pending, active, overdue)
      */
     public function findActive(): array
     {
@@ -28,16 +28,41 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
     }
 
     /**
-     * Trouve les locations en retard
+     * Trouve les locations en retard (statut 'overdue')
      */
     public function findOverdue(): array
     {
         $sql = "SELECT * FROM {$this->tableName} 
-                WHERE status = 'active' 
-                AND end_date < NOW()
+                WHERE status = 'overdue'
                 ORDER BY end_date";
 
         $results = $this->db->query($sql);
+        return $this->hydrateMultiple($results);
+    }
+
+    /**
+     * Trouve les locations retournées
+     */
+    public function findReturned(): array
+    {
+        $sql = "SELECT * FROM {$this->tableName} 
+                WHERE status = 'returned'
+                ORDER BY returned_at DESC";
+
+        $results = $this->db->query($sql);
+        return $this->hydrateMultiple($results);
+    }
+
+    /**
+     * Trouve les locations par statut
+     */
+    public function findByStatus(RentalStatus $status): array
+    {
+        $sql = "SELECT * FROM {$this->tableName} 
+                WHERE status = :status 
+                ORDER BY start_date DESC";
+
+        $results = $this->db->query($sql, ['status' => $status->value]);
         return $this->hydrateMultiple($results);
     }
 
@@ -85,19 +110,6 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
             'end' => $end->format('Y-m-d H:i:s'),
         ]);
 
-        return $this->hydrateMultiple($results);
-    }
-
-    /**
-     * Trouve les locations par statut
-     */
-    public function findByStatus(RentalStatus $status): array
-    {
-        $sql = "SELECT * FROM {$this->tableName} 
-                WHERE status = :status 
-                ORDER BY start_date DESC";
-
-        $results = $this->db->query($sql, ['status' => $status->value]);
         return $this->hydrateMultiple($results);
     }
 
@@ -210,7 +222,6 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
             if ($pagination->getOrder()) {
                 $orderClauses = [];
                 foreach ($pagination->getOrder() as $field => $direction) {
-                    // Préfixer avec 'r.' pour éviter les ambiguïtés
                     $orderClauses[] = "r.{$field} {$direction}";
                 }
                 $sql .= " ORDER BY " . implode(', ', $orderClauses);
@@ -231,9 +242,9 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
     }
 
     /**
-     * Statistiques des locations
+     * Statistiques des locations avec le champ status
      */
-    public function getStatistics(?\DateTimeImmutable $start = null, ?\DateTimeImmutable $end = null): array
+    public function getStatistics(): array
     {
         $sql = "SELECT 
                     COUNT(*) as total_rentals,
@@ -242,31 +253,14 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
                     SUM(total_price) as total_revenue,
                     AVG(total_price) as avg_rental_price,
                     AVG(DATEDIFF(end_date, start_date)) as avg_duration_days,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
                     SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
                     SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as overdue,
-                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
                     SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as returned,
                     SUM(CASE WHEN status = 'damaged' THEN 1 ELSE 0 END) as damaged
                 FROM {$this->tableName}";
 
-        $params = [];
-        $conditions = [];
-
-        if ($start) {
-            $conditions[] = "start_date >= ?";
-            $params[] = $start->format('Y-m-d H:i:s');
-        }
-
-        if ($end) {
-            $conditions[] = "end_date <= ?";
-            $params[] = $end->format('Y-m-d H:i:s');
-        }
-
-        if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(' AND ', $conditions);
-        }
-
-        $result = $this->db->query($sql, $params);
+        $result = $this->db->query($sql);
         return $result[0] ?? [
             'total_rentals' => 0,
             'unique_clients' => 0,
@@ -274,16 +268,16 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
             'total_revenue' => 0,
             'avg_rental_price' => 0,
             'avg_duration_days' => 0,
+            'pending' => 0,
             'active' => 0,
             'overdue' => 0,
-            'pending' => 0,
             'returned' => 0,
             'damaged' => 0,
         ];
     }
 
     /**
-     * Revenus par mois
+     * Revenus par mois (uniquement les locations terminées)
      */
     public function getMonthlyRevenue(int $months = 12): array
     {
@@ -293,7 +287,7 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
                     SUM(total_price) as revenue,
                     AVG(total_price) as avg_revenue
                 FROM {$this->tableName}
-                WHERE status IN ('returned', 'damaged', 'active')
+                WHERE status IN ('returned', 'damaged')
                 AND start_date >= DATE_SUB(NOW(), INTERVAL :months MONTH)
                 GROUP BY DATE_FORMAT(start_date, '%Y-%m')
                 ORDER BY month DESC";
@@ -323,7 +317,7 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
     }
 
     /**
-     * Vérifie les conflits de disponibilité
+     * Vérifie les conflits de disponibilité (exclut les locations retournées)
      */
     public function hasAvailabilityConflict(int $equipmentId, \DateTimeImmutable $start, \DateTimeImmutable $end, ?int $excludeRentalId = null): bool
     {
@@ -353,7 +347,7 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
     }
 
     /**
-     * Met à jour les statuts en retard
+     * Met à jour les statuts en retard (active -> overdue)
      */
     public function updateOverdueStatus(): int
     {
@@ -363,5 +357,41 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
                 AND end_date < NOW()";
 
         return $this->db->execute($sql);
+    }
+
+    /**
+     * Récupère toutes les locations avec pagination
+     */
+    public function findAllWithPagination(int $limit = 20, int $offset = 0): array
+    {
+        $sql = "SELECT * FROM {$this->tableName} 
+                ORDER BY created_at DESC 
+                LIMIT :limit OFFSET :offset";
+
+        $results = $this->db->query($sql, [
+            'limit' => $limit,
+            'offset' => $offset
+        ]);
+        return $this->hydrateMultiple($results);
+    }
+
+    /**
+     * Compte le nombre total de locations
+     */
+    public function countAll(): int
+    {
+        $sql = "SELECT COUNT(*) as total FROM {$this->tableName}";
+        $result = $this->db->query($sql);
+        return (int) ($result[0]['total'] ?? 0);
+    }
+
+    /**
+     * Compte les locations par statut
+     */
+    public function countByStatus(RentalStatus $status): int
+    {
+        $sql = "SELECT COUNT(*) as total FROM {$this->tableName} WHERE status = :status";
+        $result = $this->db->query($sql, ['status' => $status->value]);
+        return (int) ($result[0]['total'] ?? 0);
     }
 }

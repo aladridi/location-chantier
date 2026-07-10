@@ -3,11 +3,11 @@ namespace App\Entity\Enum;
 
 enum RentalStatus: string
 {
-    case PENDING = 'pending';      // En attente
-    case ACTIVE = 'active';        // Actif (loué)
-    case OVERDUE = 'overdue';      // En retard
-    case RETURNED = 'returned';    // Rendu
-    case DAMAGED = 'damaged';      // Endommagé
+    case PENDING = 'pending';
+    case ACTIVE = 'active';
+    case OVERDUE = 'overdue';
+    case RETURNED = 'returned';
+    case DAMAGED = 'damaged';
 
     public function getLabel(): string
     {
@@ -15,8 +15,8 @@ enum RentalStatus: string
             self::PENDING => 'En attente',
             self::ACTIVE => 'En cours',
             self::OVERDUE => 'En retard',
-            self::RETURNED => 'Rendu',
-            self::DAMAGED => 'Endommagé',
+            self::RETURNED => 'Retournée',
+            self::DAMAGED => 'Endommagée',
         };
     }
 
