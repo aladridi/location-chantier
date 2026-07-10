@@ -24,7 +24,10 @@ return function (Router $router) {
     $router->addRoute('/api/equipment/{id}', EquipmentController::class, 'delete', 'DELETE');
 
     $router->addRoute('/api/clients', ClientController::class, 'list', 'GET');
+    $router->addRoute('/api/clients/search', ClientController::class, 'search', 'GET');
+    $router->addRoute('/api/clients/stats', ClientController::class, 'stats', 'GET');
     $router->addRoute('/api/clients', ClientController::class, 'create', 'POST');
+    $router->addRoute('/api/clients/{id}', ClientController::class, 'show', 'GET');
     $router->addRoute('/api/clients/{id}', ClientController::class, 'update', 'PUT');
     $router->addRoute('/api/clients/{id}', ClientController::class, 'delete', 'DELETE');
 
