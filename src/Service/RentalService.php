@@ -4,16 +4,16 @@ namespace App\Service;
 use App\Entity\Equipment;
 use App\Entity\Rental;
 use App\Entity\Client;
-use App\Repository\EquipmentRepositoryInterface;
-use App\Repository\RentalRepositoryInterface;
+use App\Repository\EquipmentRepository;
+use App\Repository\RentalRepository;
 use App\Service\PricingStrategy\Calculator\PriceCalculator;
 use App\Core\EventDispatcher\EventDispatcherInterface;
 
 class RentalService
 {
     public function __construct(
-        private EquipmentRepositoryInterface $equipmentRepo,
-        private RentalRepositoryInterface $rentalRepo,
+        private EquipmentRepository $equipmentRepo,
+        private RentalRepository $rentalRepo,
         private PriceCalculator $priceCalculator,
         private EventDispatcherInterface $eventDispatcher
     ) {}
@@ -26,7 +26,6 @@ class RentalService
             throw new \Exception('Matériel indisponible');
         }
 
-        // Calcul du prix avec la stratégie choisie
         $breakdown = $this->priceCalculator->calculate($equipment, $days, $strategyType);
         $totalPrice = $breakdown->getFinalPrice();
 
@@ -38,21 +37,42 @@ class RentalService
             $totalPrice
         );
 
-        // Ajouter les détails du calcul
-        $rental->setPricingBreakdown($breakdown->toArray());
-
-        // Marquer comme loué
         $equipment->setAvailable(false);
         $this->equipmentRepo->save($equipment);
         $this->rentalRepo->save($rental);
 
-        // Notifier
         $this->eventDispatcher->dispatch('rental.created', [
             'rental' => $rental,
             'breakdown' => $breakdown,
         ]);
 
         return $rental;
+    }
+
+    public function returnEquipment(int $rentalId): void
+    {
+        $rental = $this->rentalRepo->find($rentalId);
+
+        if (!$rental) {
+            throw new \Exception('Location non trouvée');
+        }
+
+        $rental->return();
+        $this->rentalRepo->save($rental);
+
+        $this->eventDispatcher->dispatch('rental.returned', [
+            'rental' => $rental,
+        ]);
+    }
+
+    public function getAllRentals(): array
+    {
+        return $this->rentalRepo->findAll();
+    }
+
+    public function getRental(int $id): ?Rental
+    {
+        return $this->rentalRepo->find($id);
     }
 
     public function estimatePrice(int $equipmentId, int $days, ?string $strategyType = null): array
@@ -63,10 +83,7 @@ class RentalService
             throw new \Exception('Matériel non trouvé');
         }
 
-        // Calcul du prix
         $breakdown = $this->priceCalculator->calculate($equipment, $days, $strategyType);
-
-        // Comparaison des stratégies
         $comparison = $this->priceCalculator->compareStrategies($equipment, $days);
 
         return [
@@ -76,5 +93,35 @@ class RentalService
         ];
     }
 
+    public function checkOverdueRentals(): void
+    {
+        $overdue = $this->rentalRepo->findOverdue();
 
+        foreach ($overdue as $rental) {
+            $rental->markAsOverdue();
+            $this->rentalRepo->save($rental);
+
+            $this->eventDispatcher->dispatch('rental.overdue', [
+                'rental' => $rental,
+            ]);
+        }
+    }
+
+    // ✅ AJOUT DE LA MÉTHODE getStatistics()
+    public function getStatistics(): array
+    {
+        return $this->rentalRepo->getStatistics();
+    }
+
+    // ✅ AJOUT DE LA MÉTHODE getRecentRentals()
+    public function getRecentRentals(int $limit = 5): array
+    {
+        return $this->rentalRepo->findBy([], ['created_at' => 'DESC'], $limit);
+    }
+
+    // ✅ AJOUT DE LA MÉTHODE getMonthlyRevenue()
+    public function getMonthlyRevenue(int $months = 12): array
+    {
+        return $this->rentalRepo->getMonthlyRevenue($months);
+    }
 }

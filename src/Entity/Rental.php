@@ -2,150 +2,99 @@
 namespace App\Entity;
 
 use App\Entity\Enum\RentalStatus;
-use App\Core\Validator\Constraints as Assert;
 
 class Rental
 {
-    // Propriétés avec asymétrique visibility
     public private(set) ?int $id = null;
     public private(set) \DateTimeImmutable $createdAt;
     public private(set) \DateTimeImmutable $updatedAt;
 
-    // Hook pour le statut avec transformation automatique
-
-    public RentalStatus $status {
-        get => $this->status;
-        set (RentalStatus $status) {
-            // Validation du changement de statut
-            if (isset($this->status)) {
-                $this->validateStatusTransition($this->status, $status);
-            }
-            $this->status = $status;
-            $this->updatedAt = new \DateTimeImmutable();
-        }
-    }
-
-    // Hook pour le prix total (calculé automatiquement)
-
-    public float $totalPrice {
-        get => $this->totalPrice;
-        set (float $value) {
-            if ($value < 0) {
-                throw new \InvalidArgumentException('Le prix total ne peut pas être négatif');
-            }
-            $this->totalPrice = $value;
-        }
-    }
-
-    // Hook pour les dates avec validation
-
-    public \DateTimeImmutable $startDate {
-        get => $this->startDate;
-        set (\DateTimeImmutable $date) {
-            // Ne peut pas être dans le passé (sauf si c'est une modification)
-            if (!$this->id && $date < new \DateTimeImmutable()) {
-                throw new \InvalidArgumentException('La date de début ne peut pas être dans le passé');
-            }
-            $this->startDate = $date;
-            $this->updatedAt = new \DateTimeImmutable();
-        }
-    }
-
-
-    public \DateTimeImmutable $endDate {
-        get => $this->endDate;
-        set (\DateTimeImmutable $date) {
-            if ($date <= $this->startDate) {
-                throw new \InvalidArgumentException('La date de fin doit être postérieure à la date de début');
-            }
-            $this->endDate = $date;
-            $this->updatedAt = new \DateTimeImmutable();
-        }
-    }
-
-    // Propriété calculée : durée en jours
-    public int $durationInDays {
-        get => $this->startDate->diff($this->endDate)->days;
-    }
-
-    // Propriété calculée : est en retard ?
-    public bool $isOverdue {
-        get => $this->status === RentalStatus::ACTIVE
-            && new \DateTimeImmutable() > $this->endDate;
-    }
-
-    // Propriété calculée : jours de retard
-    public int $overdueDays {
-        get {
-            if (!$this->isOverdue) {
-                return 0;
-            }
-            return (new \DateTimeImmutable())->diff($this->endDate)->days;
-        }
-    }
-
-    // Propriété calculée : montant des pénalités (10% par jour de retard)
-    public float $penaltyAmount {
-        get {
-            if (!$this->isOverdue) {
-                return 0.0;
-            }
-            return $this->totalPrice * 0.10 * $this->overdueDays;
-        }
-    }
+    private Client $client;
+    private Equipment $equipment;
+    private \DateTimeImmutable $startDate;
+    private \DateTimeImmutable $endDate;
+    private float $totalPrice;
+    private RentalStatus $status;
+    private float $penaltyAmount = 0;
+    private ?\DateTimeImmutable $returnedAt = null;
+    private ?string $notes = null;
 
     public function __construct(
-        private Client $client,
-        private Equipment $equipment,
+        Client $client,
+        Equipment $equipment,
         \DateTimeImmutable $startDate,
         \DateTimeImmutable $endDate,
         float $totalPrice,
         RentalStatus $status = RentalStatus::PENDING,
-        private ?string $notes = null,
+        ?string $notes = null
     ) {
+        $this->client = $client;
+        $this->equipment = $equipment;
         $this->startDate = $startDate;
         $this->endDate = $endDate;
         $this->totalPrice = $totalPrice;
         $this->status = $status;
+        $this->notes = $notes;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
 
-    // Getters/Setters simples
+    // Getters
     public function getId(): ?int { return $this->id; }
-
-    public function setId(int $id): self
-    {
-        if ($this->id !== null) {
-            throw new \RuntimeException('L\'ID ne peut pas être modifié');
-        }
-        $this->id = $id;
-        return $this;
-    }
-
     public function getClient(): Client { return $this->client; }
     public function getEquipment(): Equipment { return $this->equipment; }
+    public function getStartDate(): \DateTimeImmutable { return $this->startDate; }
+    public function getEndDate(): \DateTimeImmutable { return $this->endDate; }
+    public function getTotalPrice(): float { return $this->totalPrice; }
+    public function getStatus(): RentalStatus { return $this->status; }
+    public function getPenaltyAmount(): float { return $this->penaltyAmount; }
+    public function getReturnedAt(): ?\DateTimeImmutable { return $this->returnedAt; }
     public function getNotes(): ?string { return $this->notes; }
-
-    public function setNotes(?string $notes): self
-    {
-        $this->notes = $notes;
-        $this->updatedAt = new \DateTimeImmutable();
-        return $this;
-    }
-
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 
-    // Méthodes métier - Gestion du cycle de vie
+    public function getStatusLabel(): string
+    {
+        return $this->status->getLabel();
+    }
 
+    public function getDurationInDays(): int
+    {
+        return $this->startDate->diff($this->endDate)->days;
+    }
+
+    public function getFormattedDateRange(): string
+    {
+        return sprintf(
+            'Du %s au %s (%d jours)',
+            $this->startDate->format('d/m/Y'),
+            $this->endDate->format('d/m/Y'),
+            $this->getDurationInDays()
+        );
+    }
+
+    public function isActive(): bool
+    {
+        return in_array($this->status, [RentalStatus::PENDING, RentalStatus::ACTIVE, RentalStatus::OVERDUE]);
+    }
+
+    public function isReturned(): bool
+    {
+        return $this->status === RentalStatus::RETURNED;
+    }
+
+    public function isOverdue(): bool
+    {
+        return $this->status === RentalStatus::OVERDUE;
+    }
+
+    // Méthodes métier
     public function confirm(): self
     {
         if ($this->status !== RentalStatus::PENDING) {
             throw new \RuntimeException('Seule une location en attente peut être confirmée');
         }
 
-        // Vérifier la disponibilité de l'équipement
         if (!$this->equipment->isAvailable()) {
             throw new \RuntimeException('L\'équipement n\'est plus disponible');
         }
@@ -159,13 +108,19 @@ class Rental
 
     public function return(): self
     {
-        if (!$this->status->canBeReturned()) {
-            throw new \RuntimeException('Cette location ne peut pas être retournée');
+        if ($this->isReturned()) {
+            throw new \RuntimeException('Cette location a déjà été retournée');
         }
 
         $this->status = RentalStatus::RETURNED;
-        $this->equipment->markAsAvailable();
+        $this->returnedAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
+
+        // Calculer les pénalités si en retard
+        if ($this->isOverdue()) {
+            $days = (new \DateTimeImmutable())->diff($this->endDate)->days;
+            $this->penaltyAmount = $this->totalPrice * 0.10 * $days;
+        }
 
         return $this;
     }
@@ -184,7 +139,7 @@ class Rental
 
     public function markAsDamaged(): self
     {
-        if ($this->status !== RentalStatus::ACTIVE && $this->status !== RentalStatus::OVERDUE) {
+        if (!in_array($this->status, [RentalStatus::ACTIVE, RentalStatus::OVERDUE])) {
             throw new \RuntimeException('Seule une location active ou en retard peut être marquée endommagée');
         }
 
@@ -194,76 +149,44 @@ class Rental
         return $this;
     }
 
-    // Validation des transitions de statut
-    private function validateStatusTransition(RentalStatus $from, RentalStatus $to): void
+    public function setNotes(?string $notes): self
     {
-        $allowed = [
-            RentalStatus::PENDING->value => [RentalStatus::ACTIVE, RentalStatus::CANCELLED],
-            RentalStatus::ACTIVE->value => [RentalStatus::OVERDUE, RentalStatus::RETURNED, RentalStatus::DAMAGED],
-            RentalStatus::OVERDUE->value => [RentalStatus::RETURNED, RentalStatus::DAMAGED],
-            RentalStatus::DAMAGED->value => [], // Terminus
-            RentalStatus::RETURNED->value => [], // Terminus
+        $this->notes = $notes;
+        $this->updatedAt = new \DateTimeImmutable();
+        return $this;
+    }
+
+    public function getPricingBreakdown(): ?array
+    {
+        return [
+            'base_price' => $this->totalPrice,
+            'penalty' => $this->penaltyAmount,
+            'total' => $this->totalPrice + $this->penaltyAmount,
         ];
-
-        if (!isset($allowed[$from->value]) || !in_array($to, $allowed[$from->value], true)) {
-            throw new \RuntimeException(
-                sprintf('Transition de statut invalide : %s -> %s', $from->value, $to->value)
-            );
-        }
     }
 
-    // Méthodes pour les calculs
-    public function getTotalWithPenalties(): float
-    {
-        return $this->totalPrice + $this->penaltyAmount;
-    }
-
-    public function getFormattedDateRange(): string
-    {
-        return sprintf(
-            'Du %s au %s (%d jours)',
-            $this->startDate->format('d/m/Y'),
-            $this->endDate->format('d/m/Y'),
-            $this->durationInDays
-        );
-    }
-
-    public function isActive(): bool
-    {
-        return $this->status->isActive();
-    }
-
-    // Représentation
-    public function __toString(): string
-    {
-        return sprintf(
-            'Location #%d - %s - %s (%s)',
-            $this->id ?? 0,
-            $this->client->getDisplayName(),
-            $this->equipment->getName(),
-            $this->status->getLabel()
-        );
-    }
-
-    // Sérialisation
     public function toArray(): array
     {
         return [
             'id' => $this->id,
             'client' => $this->client->toArray(),
+            'client_name' => $this->client->getDisplayName(),
             'equipment' => $this->equipment->toArray(),
+            'equipment_name' => $this->equipment->getName(),
             'start_date' => $this->startDate->format('Y-m-d H:i:s'),
             'end_date' => $this->endDate->format('Y-m-d H:i:s'),
-            'duration_in_days' => $this->durationInDays,
+            'duration_in_days' => $this->getDurationInDays(),
             'total_price' => $this->totalPrice,
             'penalty_amount' => $this->penaltyAmount,
-            'total_with_penalties' => $this->getTotalWithPenalties(),
+            'total_with_penalties' => $this->totalPrice + $this->penaltyAmount,
             'status' => $this->status->value,
             'status_label' => $this->status->getLabel(),
-            'is_overdue' => $this->isOverdue,
-            'overdue_days' => $this->overdueDays,
             'is_active' => $this->isActive(),
+            'is_returned' => $this->isReturned(),
+            'is_overdue' => $this->isOverdue(),
+            'returned_at' => $this->returnedAt?->format('Y-m-d H:i:s'),
             'notes' => $this->notes,
+            'date_range' => $this->getFormattedDateRange(),
             'created_at' => $this->createdAt->format('Y-m-d H:i:s'),
             'updated_at' => $this->updatedAt->format('Y-m-d H:i:s'),
         ];
