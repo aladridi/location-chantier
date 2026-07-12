@@ -8,11 +8,14 @@ use App\Entity\Equipment;
 use App\Entity\Enum\EquipmentCategory;
 use App\Factory\EquipmentFactory;
 use App\Core\Repository\Criteria\Criteria;
+use App\Repository\CategoryRepository;
+use App\Entity\Category;
 
 class EquipmentController
 {
     public function __construct(
-        private EquipmentRepository $repository
+        private EquipmentRepository $repository,
+        private CategoryRepository $categoryRepository
     ) {}
 
     public function list(Request $request): Response
@@ -66,11 +69,21 @@ class EquipmentController
         $data = $request->toArray();
 
         try {
-            $equipment = EquipmentFactory::create(
+            // ✅ Récupérer la catégorie
+            $category = $this->categoryRepository->findBySlug($data['category']);
+            if (!$category) {
+                return (new Response())->json([
+                    'error' => 'Catégorie invalide'
+                ], 400);
+            }
+
+            $equipment = new Equipment(
                 $data['name'],
-                $data['category'],
+                $category,  // ✅ Passer l'objet Category
                 (float) $data['daily_rate'],
-                $data['available'] ?? true
+                $data['available'] ?? true,
+                null,
+                $data['serial_number'] ?? null
             );
 
             $this->repository->save($equipment);

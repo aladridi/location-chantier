@@ -5,10 +5,7 @@ use App\Entity\Enum\RentalStatus;
 
 class Rental
 {
-    public private(set) ?int $id = null;
-    public private(set) \DateTimeImmutable $createdAt;
-    public private(set) \DateTimeImmutable $updatedAt;
-
+    private ?int $id = null;
     private Client $client;
     private Equipment $equipment;
     private \DateTimeImmutable $startDate;
@@ -18,6 +15,8 @@ class Rental
     private float $penaltyAmount = 0;
     private ?\DateTimeImmutable $returnedAt = null;
     private ?string $notes = null;
+    private \DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $updatedAt;
 
     public function __construct(
         Client $client,
@@ -53,18 +52,15 @@ class Rental
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 
-    public function getStatusLabel(): string
-    {
+    public function getStatusLabel(): string {
         return $this->status->getLabel();
     }
 
-    public function getDurationInDays(): int
-    {
+    public function getDurationInDays(): int {
         return $this->startDate->diff($this->endDate)->days;
     }
 
-    public function getFormattedDateRange(): string
-    {
+    public function getFormattedDateRange(): string {
         return sprintf(
             'Du %s au %s (%d jours)',
             $this->startDate->format('d/m/Y'),
@@ -73,24 +69,41 @@ class Rental
         );
     }
 
-    public function isActive(): bool
-    {
+    public function isActive(): bool {
         return in_array($this->status, [RentalStatus::PENDING, RentalStatus::ACTIVE, RentalStatus::OVERDUE]);
     }
 
-    public function isReturned(): bool
-    {
+    public function isReturned(): bool {
         return $this->status === RentalStatus::RETURNED;
     }
 
-    public function isOverdue(): bool
-    {
+    public function isOverdue(): bool {
         return $this->status === RentalStatus::OVERDUE;
     }
 
+    // Setters
+    public function setId(int $id): self {
+        if ($this->id !== null) {
+            throw new \RuntimeException('L\'ID ne peut pas être modifié');
+        }
+        $this->id = $id;
+        return $this;
+    }
+
+    public function setNotes(?string $notes): self {
+        $this->notes = $notes;
+        $this->updatedAt = new \DateTimeImmutable();
+        return $this;
+    }
+
+    public function setStatus(RentalStatus $status): self {
+        $this->status = $status;
+        $this->updatedAt = new \DateTimeImmutable();
+        return $this;
+    }
+
     // Méthodes métier
-    public function confirm(): self
-    {
+    public function confirm(): self {
         if ($this->status !== RentalStatus::PENDING) {
             throw new \RuntimeException('Seule une location en attente peut être confirmée');
         }
@@ -106,8 +119,7 @@ class Rental
         return $this;
     }
 
-    public function return(): self
-    {
+    public function return(): self {
         if ($this->isReturned()) {
             throw new \RuntimeException('Cette location a déjà été retournée');
         }
@@ -116,7 +128,6 @@ class Rental
         $this->returnedAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
 
-        // Calculer les pénalités si en retard
         if ($this->isOverdue()) {
             $days = (new \DateTimeImmutable())->diff($this->endDate)->days;
             $this->penaltyAmount = $this->totalPrice * 0.10 * $days;
@@ -125,8 +136,7 @@ class Rental
         return $this;
     }
 
-    public function markAsOverdue(): self
-    {
+    public function markAsOverdue(): self {
         if ($this->status !== RentalStatus::ACTIVE) {
             throw new \RuntimeException('Seule une location active peut être marquée en retard');
         }
@@ -137,8 +147,7 @@ class Rental
         return $this;
     }
 
-    public function markAsDamaged(): self
-    {
+    public function markAsDamaged(): self {
         if (!in_array($this->status, [RentalStatus::ACTIVE, RentalStatus::OVERDUE])) {
             throw new \RuntimeException('Seule une location active ou en retard peut être marquée endommagée');
         }
@@ -149,15 +158,7 @@ class Rental
         return $this;
     }
 
-    public function setNotes(?string $notes): self
-    {
-        $this->notes = $notes;
-        $this->updatedAt = new \DateTimeImmutable();
-        return $this;
-    }
-
-    public function getPricingBreakdown(): ?array
-    {
+    public function getPricingBreakdown(): ?array {
         return [
             'base_price' => $this->totalPrice,
             'penalty' => $this->penaltyAmount,
@@ -165,8 +166,7 @@ class Rental
         ];
     }
 
-    public function toArray(): array
-    {
+    public function toArray(): array {
         return [
             'id' => $this->id,
             'client' => $this->client->toArray(),
