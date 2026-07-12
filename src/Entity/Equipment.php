@@ -3,6 +3,8 @@ namespace App\Entity;
 
 use App\Entity\Enum\EquipmentCategory;
 use App\Core\Validator\Constraints as Assert;
+use App\Entity\Category;
+
 
 /**
  * Classe Equipment avec les nouveautés PHP 8.4
@@ -67,9 +69,16 @@ class Equipment
         }
     }
 
+    private Category $category {
+        get => $this->category;
+                set (Category $value) {
+            $this->category = $value;
+        }
+    }
+
     public function __construct(
         string $name,
-        EquipmentCategory $category,
+        Category $category,
         float $dailyRate,
         private bool $available = true,
         private ?\DateTimeImmutable $lastMaintenance = null,
@@ -169,15 +178,12 @@ class Equipment
 
     public function needsMaintenance(): bool
     {
-        // Si aucune maintenance n'a été faite depuis plus de 90 jours
         if (!$this->lastMaintenance) {
             return true;
         }
 
         $daysSinceMaintenance = $this->lastMaintenance->diff(new \DateTimeImmutable())->days;
-
-        // Pour les équipements lourds, maintenance plus fréquente
-        $threshold = $this->category->requiresMaintenanceCheck() ? 60 : 90;
+        $threshold = $this->category->requiresMaintenance() ? 60 : 90;
 
         return $daysSinceMaintenance > $threshold;
     }

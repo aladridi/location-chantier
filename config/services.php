@@ -2,6 +2,7 @@
 
 use App\Core\Container\Container;
 use App\Core\Database\Database;
+use App\Core\Database\DatabaseInterface;  // ✅ Ajout de l'import
 use App\Core\EventDispatcher\EventDispatcher;
 use App\Core\Router\Router;
 
@@ -10,6 +11,7 @@ use App\Repository\EquipmentRepository;
 use App\Repository\ClientRepository;
 use App\Repository\RentalRepository;
 use App\Repository\UserRepository;
+use App\Repository\CategoryRepository;
 
 // Services
 use App\Service\RentalService;
@@ -49,17 +51,15 @@ return function (Container $container) {
     // 2. SERVICES DE BASE (CORE)
     // ============================================
 
-    // ✅ Database - avec construction adaptée à l'environnement
+    // ✅ Enregistrer Database avec son interface
     $container->set(Database::class, function ($c) {
         $config = $c->getParameter('database.config');
 
-        // ✅ Construction du DSN adapté
         $driver = $config['driver'] ?? 'mysql';
         $host = $config['host'] ?? '127.0.0.1';
         $port = $config['port'] ?? '3306';
         $database = $config['database'] ?? 'location_chantier';
 
-        // ✅ Vérifier si un socket est spécifié
         if (isset($config['socket']) && !empty($config['socket']) && file_exists($config['socket'])) {
             $dsn = "$driver:unix_socket={$config['socket']};dbname=$database;charset=utf8mb4";
         } else {
@@ -71,6 +71,11 @@ return function (Container $container) {
             $config['username'] ?? 'root',
             $config['password'] ?? ''
         );
+    });
+
+    // ✅ AJOUT : Alias pour l'interface DatabaseInterface
+    $container->set(DatabaseInterface::class, function ($c) {
+        return $c->get(Database::class);
     });
 
     $container->set(Router::class, function () {
@@ -98,6 +103,10 @@ return function (Container $container) {
 
     $container->set(UserRepository::class, function ($c) {
         return new UserRepository($c->get(Database::class));
+    });
+
+    $container->set(CategoryRepository::class, function ($c) {
+        return new CategoryRepository($c->get(Database::class));
     });
 
     // ============================================

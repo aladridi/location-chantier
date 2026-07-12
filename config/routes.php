@@ -4,6 +4,7 @@ use App\Controller\AuthApiController;
 use App\Controller\EquipmentController;
 use App\Controller\ClientController;
 use App\Controller\RentalController;
+use App\Controller\CategoryController;
 
 return function (Router $router) {
     // ============================================
@@ -38,4 +39,14 @@ return function (Router $router) {
     $router->addRoute('/api/rentals', RentalController::class, 'create', 'POST');
     $router->addRoute('/api/rentals/{id}/return', RentalController::class, 'return', 'POST');
     $router->addRoute('/api/rentals/estimate', RentalController::class, 'estimate', 'GET');
+    // ============================================
+    // API CATÉGORIES
+    // ============================================
+    $router->addRoute('/api/categories', CategoryController::class, 'list', 'GET');
+    $router->addRoute('/api/categories/active', CategoryController::class, 'active', 'GET');
+    $router->addRoute('/api/categories', CategoryController::class, 'create', 'POST');
+    $router->addRoute('/api/categories/reorder', CategoryController::class, 'reorder', 'POST');
+    $router->addRoute('/api/categories/{id}', CategoryController::class, 'show', 'GET');
+    $router->addRoute('/api/categories/{id}', CategoryController::class, 'update', 'PUT');
+    $router->addRoute('/api/categories/{id}', CategoryController::class, 'delete', 'DELETE');
 };

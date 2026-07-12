@@ -37,8 +37,11 @@
                   :class="{ 'is-invalid': errors.category }"
               >
                 <option value="">Sélectionner une catégorie</option>
-                <option v-for="cat in categories" :key="cat" :value="cat">
-                  {{ formatCategory(cat) }}
+                <option v-for="cat in categories" :key="cat.id" :value="cat.slug">
+                  {{ cat.name }}
+                  <span v-if="cat.daily_rate_multiplier !== 1.0">
+                    (x{{ cat.daily_rate_multiplier }})
+                  </span>
                 </option>
               </select>
               <div class="invalid-feedback" v-if="errors.category">{{ errors.category }}</div>
@@ -82,6 +85,9 @@
               <div class="alert alert-info">
                 <i class="bi bi-info-circle me-2"></i>
                 Le prix effectif sera calculé automatiquement selon la catégorie.
+                <span v-if="selectedCategory && selectedCategory.daily_rate_multiplier !== 1.0">
+                  (Multiplicateur: x{{ selectedCategory.daily_rate_multiplier }})
+                </span>
               </div>
             </div>
 
@@ -103,6 +109,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEquipmentStore } from '../stores/equipment'
+import { useCategoryStore } from '../stores/category'
 
 const route = useRoute()
 const router = useRouter()
