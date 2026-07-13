@@ -461,3 +461,41 @@ backup_*/
 
 # Fichiers de cache de bibliothèque
 /.cache/
+
+# ============================================
+# UPLOADS - Ne pas versionner les images
+# ============================================
+
+# Dossier principal d'upload
+/uploads/
+/public/uploads/
+
+# Sous-dossiers spécifiques
+/public/uploads/equipment/
+/public/uploads/equipment/original/
+/public/uploads/equipment/large/
+/public/uploads/equipment/medium/
+/public/uploads/equipment/thumbnail/
+
+# Tous les fichiers images
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.svg
+*.ico
+
+# Fichiers temporaires d'upload
+*.tmp
+*.temp
+
+# ✅ Garder les fichiers .gitkeep pour la structure
+!uploads/.gitkeep
+!public/uploads/.gitkeep
+!public/uploads/equipment/.gitkeep
+!public/uploads/equipment/original/.gitkeep
+!public/uploads/equipment/large/.gitkeep
+!public/uploads/equipment/medium/.gitkeep
+!public/uploads/equipment/thumbnail/.gitkeep
+📁

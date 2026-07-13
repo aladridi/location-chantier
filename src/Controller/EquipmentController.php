@@ -1,16 +1,15 @@
 <?php
 namespace App\Controller;
 
-use App\Repository\EquipmentRepository;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
-use App\Entity\Equipment;
-use App\Factory\EquipmentFactory;
-use App\Core\Repository\Criteria\Criteria;
+use App\Repository\EquipmentRepository;
 use App\Repository\CategoryRepository;
-use App\Entity\Category;
 use App\Repository\EquipmentImageRepository;
+use App\Entity\Equipment;
+use App\Entity\EquipmentImage;
 use App\Service\ImageService;
+use App\Core\Repository\Criteria\Criteria;
 
 
 
@@ -261,28 +260,130 @@ class EquipmentController
                 ], 404);
             }
 
-            $files = $request->getFiles();
-            if (empty($files['image'])) {
+            // ✅ Vérifier si la méthode a des fichiers
+            if (!$request->hasFile('image')) {
                 return (new Response())->json([
                     'error' => 'Aucune image fournie'
                 ], 400);
             }
 
-            $isMain = $request->get('is_main') === 'true' || $this->imageRepository->getCountByEquipment($id) === 0;
+            // ✅ Récupérer le fichier
+            $file = $request->getFile('image');
 
-            $image = $this->imageService->uploadForEquipment($equipment, $files['image'], $isMain);
+            // ✅ Vérifier l'erreur d'upload
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                $errors = [
+                    UPLOAD_ERR_INI_SIZE => 'Le fichier dépasse la taille maximale autorisée par le serveur',
+                    UPLOAD_ERR_FORM_SIZE => 'Le fichier dépasse la taille maximale autorisée par le formulaire',
+                    UPLOAD_ERR_PARTIAL => 'Le fichier n\'a été que partiellement téléchargé',
+                    UPLOAD_ERR_NO_FILE => 'Aucun fichier n\'a été téléchargé',
+                    UPLOAD_ERR_NO_TMP_DIR => 'Le répertoire temporaire est manquant',
+                    UPLOAD_ERR_CANT_WRITE => 'Impossible d\'écrire le fichier sur le disque',
+                    UPLOAD_ERR_EXTENSION => 'Une extension PHP a arrêté le téléchargement',
+                ];
+                return (new Response())->json([
+                    'error' => $errors[$file['error']] ?? 'Erreur inconnue lors du téléchargement'
+                ], 400);
+            }
+
+            // ✅ Upload de l'image
+            $image = $this->imageService->uploadForEquipment($equipment, $file, false);
 
             return (new Response())->json([
                 'success' => true,
                 'data' => $image->toArray(),
                 'message' => 'Image uploadée avec succès'
             ], 201);
+
         } catch (\Exception $e) {
             return (new Response())->json([
                 'error' => $e->getMessage()
             ], 400);
         }
     }
+
+    /**
+     * Upload multiple d'images
+     */
+    public function uploadMultipleImages(Request $request, int $id): Response
+    {
+        try {
+            $equipment = $this->repository->find($id);
+
+            if (!$equipment) {
+                return (new Response())->json([
+                    'error' => 'Équipement non trouvé'
+                ], 404);
+            }
+
+            $files = $request->getFiles();
+
+            if (empty($files['images'])) {
+                return (new Response())->json([
+                    'error' => 'Aucune image fournie'
+                ], 400);
+            }
+
+            // ✅ S'assurer que c'est un tableau
+            $uploadedFiles = $files['images'];
+            if (!isset($uploadedFiles['name'][0])) {
+                // Si un seul fichier est uploadé
+                $uploadedFiles = [$uploadedFiles];
+            } else {
+                // Transformer en tableau de fichiers
+                $temp = [];
+                foreach ($uploadedFiles['name'] as $key => $name) {
+                    $temp[] = [
+                        'name' => $name,
+                        'type' => $uploadedFiles['type'][$key],
+                        'tmp_name' => $uploadedFiles['tmp_name'][$key],
+                        'error' => $uploadedFiles['error'][$key],
+                        'size' => $uploadedFiles['size'][$key],
+                    ];
+                }
+                $uploadedFiles = $temp;
+            }
+
+            $results = [];
+            $errors = [];
+
+            foreach ($uploadedFiles as $index => $file) {
+                if ($file['error'] === UPLOAD_ERR_OK) {
+                    try {
+                        $isMain = ($index === 0 && $this->imageRepository->getCountByEquipment($id) === 0);
+                        $image = $this->imageService->uploadForEquipment($equipment, $file, $isMain);
+                        $results[] = $image->toArray();
+                    } catch (\Exception $e) {
+                        $errors[] = [
+                            'index' => $index,
+                            'error' => $e->getMessage()
+                        ];
+                    }
+                } else {
+                    $errors[] = [
+                        'index' => $index,
+                        'error' => 'Erreur d\'upload'
+                    ];
+                }
+            }
+
+            return (new Response())->json([
+                'success' => true,
+                'data' => [
+                    'uploaded' => $results,
+                    'errors' => $errors,
+                    'total' => count($results)
+                ],
+                'message' => count($results) . ' image(s) uploadée(s) avec succès'
+            ], 201);
+
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
 
     /**
      * Définit l'image principale

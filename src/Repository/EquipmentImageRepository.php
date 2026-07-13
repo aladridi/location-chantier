@@ -12,6 +12,93 @@ class EquipmentImageRepository extends AbstractRepository
         $this->entityClass = EquipmentImage::class;
     }
 
+    /**
+     * ✅ Surcharge de save pour gérer correctement les champs
+     * Cette méthode remplace celle du parent pour éviter les problèmes de mapping
+     */
+    public function save(object $entity): void
+    {
+        if (!$entity instanceof EquipmentImage) {
+            throw new \InvalidArgumentException('Entity must be instance of EquipmentImage');
+        }
+
+        $image = $entity;
+        $id = $image->getId();
+
+        if ($id) {
+            // Update
+            $sql = "UPDATE {$this->tableName} SET 
+                        equipment_id = :equipment_id,
+                        filename = :filename,
+                        original_name = :original_name,
+                        path = :path,
+                        size = :size,
+                        mime_type = :mime_type,
+                        width = :width,
+                        height = :height,
+                        alt_text = :alt_text,
+                        title = :title,
+                        is_main = :is_main,
+                        sort_order = :sort_order,
+                        is_active = :is_active
+                    WHERE id = :id";
+
+            $this->db->execute($sql, [
+                'id' => $id,
+                'equipment_id' => $image->getEquipment()->getId(),
+                'filename' => $image->getFilename(),
+                'original_name' => $image->getOriginalName(),
+                'path' => $image->getPath(),
+                'size' => $image->getSize(),
+                'mime_type' => $image->getMimeType(),
+                'width' => $image->getWidth(),
+                'height' => $image->getHeight(),
+                'alt_text' => $image->getAltText(),
+                'title' => $image->getTitle(),
+                'is_main' => $image->isMain() ? 1 : 0,
+                'sort_order' => $image->getSortOrder(),
+                'is_active' => $image->isActive() ? 1 : 0,
+            ]);
+        } else {
+            // Insert
+            $sql = "INSERT INTO {$this->tableName} 
+                        (equipment_id, filename, original_name, path, size, mime_type, 
+                         width, height, alt_text, title, is_main, sort_order, is_active) 
+                    VALUES 
+                        (:equipment_id, :filename, :original_name, :path, :size, :mime_type,
+                         :width, :height, :alt_text, :title, :is_main, :sort_order, :is_active)";
+
+            $this->db->execute($sql, [
+                'equipment_id' => $image->getEquipment()->getId(),
+                'filename' => $image->getFilename(),
+                'original_name' => $image->getOriginalName(),
+                'path' => $image->getPath(),
+                'size' => $image->getSize(),
+                'mime_type' => $image->getMimeType(),
+                'width' => $image->getWidth(),
+                'height' => $image->getHeight(),
+                'alt_text' => $image->getAltText(),
+                'title' => $image->getTitle(),
+                'is_main' => $image->isMain() ? 1 : 0,
+                'sort_order' => $image->getSortOrder(),
+                'is_active' => $image->isActive() ? 1 : 0,
+            ]);
+
+            // Récupérer l'ID généré
+            $lastId = (int) $this->db->lastInsertId();
+            if ($lastId) {
+                $reflection = new \ReflectionClass($entity);
+                if ($reflection->hasProperty('id')) {
+                    $property = $reflection->getProperty('id');
+                    $property->setValue($entity, $lastId);
+                }
+            }
+        }
+    }
+
+    /**
+     * Trouve les images d'un équipement
+     */
     public function findByEquipment(int $equipmentId): array
     {
         $sql = "SELECT * FROM {$this->tableName} 
@@ -23,6 +110,9 @@ class EquipmentImageRepository extends AbstractRepository
         return $this->hydrateMultiple($results);
     }
 
+    /**
+     * Trouve l'image principale d'un équipement
+     */
     public function findMainImage(int $equipmentId): ?EquipmentImage
     {
         $sql = "SELECT * FROM {$this->tableName} 
@@ -40,6 +130,9 @@ class EquipmentImageRepository extends AbstractRepository
         return $this->hydrate($results[0]);
     }
 
+    /**
+     * Définit l'image principale
+     */
     public function setMainImage(int $imageId, int $equipmentId): void
     {
         // Réinitialiser toutes les images de l'équipement
@@ -55,6 +148,9 @@ class EquipmentImageRepository extends AbstractRepository
         );
     }
 
+    /**
+     * Réorganise les images
+     */
     public function reorder(int $equipmentId, array $order): void
     {
         foreach ($order as $imageId => $sortOrder) {
@@ -65,22 +161,26 @@ class EquipmentImageRepository extends AbstractRepository
         }
     }
 
+    /**
+     * Supprime toutes les images d'un équipement
+     */
     public function deleteByEquipment(int $equipmentId): void
     {
         $images = $this->findByEquipment($equipmentId);
 
         foreach ($images as $image) {
-            // Supprimer physiquement les fichiers
             $this->deletePhysicalFiles($image);
         }
 
-        // Supprimer les entrées en base
         $this->db->execute(
             "DELETE FROM {$this->tableName} WHERE equipment_id = ?",
             [$equipmentId]
         );
     }
 
+    /**
+     * Supprime les fichiers physiques d'une image
+     */
     public function deletePhysicalFiles(EquipmentImage $image): void
     {
         $basePath = __DIR__ . '/../../public/uploads/equipment/';
@@ -94,6 +194,9 @@ class EquipmentImageRepository extends AbstractRepository
         }
     }
 
+    /**
+     * Compte les images d'un équipement
+     */
     public function getCountByEquipment(int $equipmentId): int
     {
         $sql = "SELECT COUNT(*) as count FROM {$this->tableName} 
@@ -101,5 +204,37 @@ class EquipmentImageRepository extends AbstractRepository
 
         $result = $this->db->query($sql, ['equipment_id' => $equipmentId]);
         return (int) ($result[0]['count'] ?? 0);
+    }
+
+    /**
+     * Supprime une image (surcharge pour supprimer aussi les fichiers)
+     */
+    public function delete(int $id): void
+    {
+        // Récupérer l'image avant de la supprimer
+        $image = $this->find($id);
+        if ($image) {
+            $this->deletePhysicalFiles($image);
+        }
+
+        parent::delete($id);
+    }
+
+    /**
+     * Hydrate une image (surcharge pour gérer l'équipement)
+     */
+    protected function hydrate(array $data): object
+    {
+        // Si equipment_id est présent, récupérer l'équipement
+        if (isset($data['equipment_id'])) {
+            $equipmentRepo = new EquipmentRepository($this->db);
+            $equipment = $equipmentRepo->find($data['equipment_id']);
+            if ($equipment) {
+                $data['equipment'] = $equipment;
+            }
+            unset($data['equipment_id']);
+        }
+
+        return parent::hydrate($data);
     }
 }

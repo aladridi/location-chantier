@@ -29,27 +29,17 @@ class ImageUpload extends AbstractUpload
         $this->ensureThumbnailDirectories();
     }
 
-    /**
-     * Upload une image avec génération des thumbnails
-     */
     public function upload(array $file, ?string $subDirectory = null): array
     {
         $result = parent::upload($file, $subDirectory);
-
-        // Générer les thumbnails
         $this->generateThumbnails($result['full_path'], $subDirectory, $result['filename']);
-
         return $result;
     }
 
-    /**
-     * Supprime une image et ses thumbnails
-     */
     public function delete(string $filename, ?string $subDirectory = null): bool
     {
         $deleted = parent::delete($filename, $subDirectory);
 
-        // Supprimer les thumbnails
         foreach ($this->thumbnails as $name => $config) {
             $thumbnailPath = $this->getThumbnailPath($filename, $name, $subDirectory);
             if (file_exists($thumbnailPath)) {
@@ -60,9 +50,6 @@ class ImageUpload extends AbstractUpload
         return $deleted;
     }
 
-    /**
-     * Récupère l'URL d'un thumbnail
-     */
     public function getThumbnailUrl(string $filename, string $size = 'medium', ?string $subDirectory = null): string
     {
         if (!isset($this->thumbnails[$size])) {
@@ -73,9 +60,6 @@ class ImageUpload extends AbstractUpload
         return '/uploads/' . $size . '/' . ltrim($path, '/');
     }
 
-    /**
-     * Génère les thumbnails
-     */
     protected function generateThumbnails(string $sourcePath, ?string $subDirectory, string $filename): void
     {
         $imageInfo = @getimagesize($sourcePath);
@@ -100,9 +84,6 @@ class ImageUpload extends AbstractUpload
         }
     }
 
-    /**
-     * Génère un thumbnail
-     */
     protected function generateThumbnail(
         string $sourcePath,
         string $filename,
@@ -117,7 +98,6 @@ class ImageUpload extends AbstractUpload
         $targetHeight = $config['height'];
         $crop = $config['crop'] ?? false;
 
-        // Calculer les dimensions
         if ($crop) {
             $ratio = max($targetWidth / $originalWidth, $targetHeight / $originalHeight);
             $newWidth = intval($originalWidth * $ratio);
@@ -132,42 +112,34 @@ class ImageUpload extends AbstractUpload
             $srcY = 0;
         }
 
-        // Créer l'image source
         $source = $this->createImageFromFile($sourcePath, $mimeType);
         if (!$source) {
             return;
         }
 
-        // Créer l'image destination
         $target = imagecreatetruecolor($targetWidth, $targetHeight);
 
-        // Gérer la transparence pour PNG et GIF
         if ($mimeType === 'image/png' || $mimeType === 'image/gif') {
             imagecolortransparent($target, imagecolorallocatealpha($target, 0, 0, 0, 127));
             imagealphablending($target, false);
             imagesavealpha($target, true);
         }
 
-        // Redimensionner
         if ($crop) {
             imagecopyresampled($target, $source, 0, 0, $srcX, $srcY, $targetWidth, $targetHeight, $newWidth, $newHeight);
         } else {
             imagecopyresampled($target, $source, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
         }
 
-        // Sauvegarder
         $thumbnailPath = $this->getThumbnailPath($filename, $name, $subDirectory);
         $this->ensureDirectoryExists(dirname($thumbnailPath));
 
         $this->saveImage($target, $thumbnailPath, $mimeType);
 
-        imagedestroy($source);
-        imagedestroy($target);
+        // ✅ Supprimer imagedestroy() - plus nécessaire en PHP 8.0+
+        // Les ressources sont automatiquement libérées
     }
 
-    /**
-     * Crée une image depuis un fichier
-     */
     protected function createImageFromFile(string $path, string $mimeType)
     {
         switch ($mimeType) {
@@ -184,9 +156,6 @@ class ImageUpload extends AbstractUpload
         }
     }
 
-    /**
-     * Sauvegarde une image
-     */
     protected function saveImage($image, string $path, string $mimeType): void
     {
         switch ($mimeType) {
@@ -207,18 +176,12 @@ class ImageUpload extends AbstractUpload
         }
     }
 
-    /**
-     * Récupère le chemin d'un thumbnail
-     */
     protected function getThumbnailPath(string $filename, string $size, ?string $subDirectory = null): string
     {
         $relativePath = $this->getRelativePath($filename, $subDirectory);
         return $this->uploadDir . $size . '/' . ltrim($relativePath, '/');
     }
 
-    /**
-     * Crée les répertoires des thumbnails
-     */
     protected function ensureThumbnailDirectories(): void
     {
         foreach ($this->thumbnails as $name => $config) {
