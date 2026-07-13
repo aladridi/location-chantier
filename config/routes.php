@@ -49,4 +49,13 @@ return function (Router $router) {
     $router->addRoute('/api/categories/{id}', CategoryController::class, 'show', 'GET');
     $router->addRoute('/api/categories/{id}', CategoryController::class, 'update', 'PUT');
     $router->addRoute('/api/categories/{id}', CategoryController::class, 'delete', 'DELETE');
+
+    // ============================================
+    // API IMAGES DES ÉQUIPEMENTS
+    // ============================================
+    $router->addRoute('/api/equipment/{id}/images', EquipmentController::class, 'getImages', 'GET');
+    $router->addRoute('/api/equipment/{id}/images', EquipmentController::class, 'uploadImage', 'POST');
+    $router->addRoute('/api/equipment/{id}/images/main', EquipmentController::class, 'setMainImage', 'PUT');
+    $router->addRoute('/api/equipment/{id}/images/reorder', EquipmentController::class, 'reorderImages', 'PUT');
+    $router->addRoute('/api/equipment/images/{imageId}', EquipmentController::class, 'deleteImage', 'DELETE');
 };

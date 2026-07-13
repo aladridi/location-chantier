@@ -261,6 +261,9 @@ abstract class AbstractRepository implements RepositoryInterface
         $this->db->execute($sql, $params);
     }
 
+    /**
+     * Extrait les données d'une entité
+     */
     private function extractData(object $entity): array
     {
         $reflection = new \ReflectionClass($entity);
@@ -272,12 +275,27 @@ abstract class AbstractRepository implements RepositoryInterface
             if ($fieldName) {
                 $value = $property->getValue($entity);
 
+                // ✅ Traiter les valeurs spéciales
                 if ($value instanceof \DateTimeImmutable) {
                     $value = $value->format('Y-m-d H:i:s');
                 } elseif ($value instanceof \UnitEnum) {
                     $value = $value->value;
+                } elseif ($value instanceof \App\Entity\Category) {
+                    // ✅ Si c'est un objet Category, prendre le slug
+                    $value = $value->getSlug();
+                } elseif (is_object($value) && method_exists($value, '__toString')) {
+                    $value = $value->__toString();
+                } elseif (is_object($value)) {
+                    // Si c'est un autre objet, essayer de le convertir
+                    if (method_exists($value, 'getId')) {
+                        $value = $value->getId();
+                    } else {
+                        continue; // Ignorer les objets qu'on ne peut pas convertir
+                    }
                 } elseif (is_bool($value)) {
                     $value = $value ? 1 : 0;
+                } elseif (is_array($value)) {
+                    $value = json_encode($value);
                 }
 
                 $data[$fieldName] = $value;

@@ -14,6 +14,9 @@ export const useCategoryStore = defineStore('category', {
         },
         getCategoryBySlug: (state) => (slug) => {
             return state.categories.find(c => c.slug === slug)
+        },
+        getCategoryById: (state) => (id) => {
+            return state.categories.find(c => c.id === id)
         }
     },
 
@@ -23,8 +26,10 @@ export const useCategoryStore = defineStore('category', {
             try {
                 const response = await axios.get('/api/categories')
                 this.categories = response.data.data || []
+                return this.categories
             } catch (error) {
                 this.error = error.message
+                console.error('Erreur chargement catégories:', error)
             } finally {
                 this.loading = false
             }
@@ -35,8 +40,10 @@ export const useCategoryStore = defineStore('category', {
             try {
                 const response = await axios.get('/api/categories/active')
                 this.categories = response.data.data || []
+                return this.categories
             } catch (error) {
                 this.error = error.message
+                console.error('Erreur chargement catégories actives:', error)
             } finally {
                 this.loading = false
             }
