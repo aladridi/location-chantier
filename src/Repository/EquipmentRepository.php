@@ -215,4 +215,80 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
 
         return $this->db->query($sql);
     }
+
+    protected function extractData(object $entity): array
+    {
+        $data = parent::extractData($entity);
+
+        if (isset($data['category']) && $data['category'] instanceof \App\Entity\Category) {
+            $data['category'] = $data['category']->getSlug();
+        }
+
+        if (isset($data['last_maintenance']) && $data['last_maintenance'] instanceof \DateTimeImmutable) {
+            $data['last_maintenance'] = $data['last_maintenance']->format('Y-m-d H:i:s');
+        }
+
+        return $data;
+    }
+
+    public function save(object $entity): void
+    {
+        if (!$entity instanceof Equipment) {
+            throw new \InvalidArgumentException('Entity must be instance of Equipment');
+        }
+
+        $equipment = $entity;
+
+        $category = $equipment->getCategory();
+        $categorySlug = $category ? $category->getSlug() : null;
+        $id = $equipment->getId();
+
+        if ($id) {
+            $sql = "UPDATE {$this->tableName} SET 
+                        name = :name,
+                        category = :category,
+                        serial_number = :serial_number,
+                        daily_rate = :daily_rate,
+                        available = :available,
+                        last_maintenance = :last_maintenance
+                    WHERE id = :id";
+
+            $this->db->execute($sql, [
+                'id' => $id,
+                'name' => $equipment->getName(),
+                'category' => $categorySlug,
+                'serial_number' => $equipment->getSerialNumber(),
+                'daily_rate' => $equipment->getDailyRate(),
+                'available' => $equipment->isAvailable() ? 1 : 0,
+                'last_maintenance' => $equipment->getLastMaintenance()?->format('Y-m-d H:i:s'),
+            ]);
+        } else {
+            // ✅ Insert sans les champs image
+            $sql = "INSERT INTO {$this->tableName} 
+                        (name, category, serial_number, daily_rate, available, last_maintenance) 
+                    VALUES 
+                        (:name, :category, :serial_number, :daily_rate, :available, :last_maintenance)";
+
+            $this->db->execute($sql, [
+                'name' => $equipment->getName(),
+                'category' => $categorySlug,
+                'serial_number' => $equipment->getSerialNumber(),
+                'daily_rate' => $equipment->getDailyRate(),
+                'available' => $equipment->isAvailable() ? 1 : 0,
+                'last_maintenance' => $equipment->getLastMaintenance()?->format('Y-m-d H:i:s'),
+            ]);
+
+            $lastId = (int) $this->db->lastInsertId();
+            if ($lastId) {
+                $reflection = new \ReflectionClass($equipment);
+                if ($reflection->hasProperty('id')) {
+                    $property = $reflection->getProperty('id');
+                    $property->setValue($equipment, $lastId);
+                }
+            }
+        }
+    }
+
+
+
 }

@@ -5,17 +5,22 @@ use App\Repository\EquipmentRepository;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Entity\Equipment;
-use App\Entity\Enum\EquipmentCategory;
 use App\Factory\EquipmentFactory;
 use App\Core\Repository\Criteria\Criteria;
 use App\Repository\CategoryRepository;
 use App\Entity\Category;
+use App\Repository\EquipmentImageRepository;
+use App\Service\ImageService;
+
+
 
 class EquipmentController
 {
     public function __construct(
         private EquipmentRepository $repository,
-        private CategoryRepository $categoryRepository
+        private CategoryRepository $categoryRepository,
+        private ImageService $imageService,
+        private EquipmentImageRepository $imageRepository
     ) {}
 
     public function list(Request $request): Response
@@ -79,7 +84,7 @@ class EquipmentController
 
             $equipment = new Equipment(
                 $data['name'],
-                $category,  // ✅ Passer l'objet Category
+                $category,
                 (float) $data['daily_rate'],
                 $data['available'] ?? true,
                 null,
@@ -208,5 +213,163 @@ class EquipmentController
                 'by_category' => $byCategory,
             ]
         ]);
+    }
+
+    /**
+     * Récupère les images d'un équipement
+     */
+    public function getImages(Request $request, int $id): Response
+    {
+        try {
+            $equipment = $this->repository->find($id);
+
+            if (!$equipment) {
+                return (new Response())->json([
+                    'error' => 'Équipement non trouvé'
+                ], 404);
+            }
+
+            $images = $this->imageService->getEquipmentImages($id);
+            $mainImage = $this->imageService->getEquipmentMainImage($id);
+
+            return (new Response())->json([
+                'success' => true,
+                'data' => [
+                    'images' => array_map(fn($img) => $img->toArray(), $images),
+                    'main_image' => $mainImage ? $mainImage->toArray() : null,
+                    'total' => count($images)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Upload une image pour un équipement
+     */
+    public function uploadImage(Request $request, int $id): Response
+    {
+        try {
+            $equipment = $this->repository->find($id);
+
+            if (!$equipment) {
+                return (new Response())->json([
+                    'error' => 'Équipement non trouvé'
+                ], 404);
+            }
+
+            $files = $request->getFiles();
+            if (empty($files['image'])) {
+                return (new Response())->json([
+                    'error' => 'Aucune image fournie'
+                ], 400);
+            }
+
+            $isMain = $request->get('is_main') === 'true' || $this->imageRepository->getCountByEquipment($id) === 0;
+
+            $image = $this->imageService->uploadForEquipment($equipment, $files['image'], $isMain);
+
+            return (new Response())->json([
+                'success' => true,
+                'data' => $image->toArray(),
+                'message' => 'Image uploadée avec succès'
+            ], 201);
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Définit l'image principale
+     */
+    public function setMainImage(Request $request, int $id): Response
+    {
+        try {
+            $data = $request->toArray();
+            $imageId = $data['image_id'] ?? null;
+
+            if (!$imageId) {
+                return (new Response())->json([
+                    'error' => 'ID d\'image non fourni'
+                ], 400);
+            }
+
+            $success = $this->imageService->setMainImage($imageId, $id);
+
+            if (!$success) {
+                return (new Response())->json([
+                    'error' => 'Impossible de définir l\'image principale'
+                ], 400);
+            }
+
+            return (new Response())->json([
+                'success' => true,
+                'message' => 'Image principale mise à jour'
+            ]);
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Réorganise les images
+     */
+    public function reorderImages(Request $request, int $id): Response
+    {
+        try {
+            $data = $request->toArray();
+            $order = $data['order'] ?? [];
+
+            if (empty($order)) {
+                return (new Response())->json([
+                    'error' => 'Aucun ordre spécifié'
+                ], 400);
+            }
+
+            $this->imageService->reorderImages($id, $order);
+
+            return (new Response())->json([
+                'success' => true,
+                'message' => 'Images réorganisées avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Supprime une image
+     */
+    public function deleteImage(Request $request, int $imageId): Response
+    {
+        try {
+            $image = $this->imageRepository->find($imageId);
+
+            if (!$image) {
+                return (new Response())->json([
+                    'error' => 'Image non trouvée'
+                ], 404);
+            }
+
+            $this->imageService->deleteImage($image);
+
+            return (new Response())->json([
+                'success' => true,
+                'message' => 'Image supprimée avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 400);
+        }
     }
 }
