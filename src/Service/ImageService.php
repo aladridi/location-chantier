@@ -34,7 +34,11 @@ class ImageService
         // Upload du fichier
         $uploadResult = $this->uploader->upload($file, 'equipment');
 
-        // Créer l'entité image
+        // Vérifier si l'image existe déjà
+        $existingImages = $this->imageRepository->findByEquipment($equipment->getId());
+        $sortOrder = count($existingImages);
+
+        // ✅ Créer l'entité image
         $image = new EquipmentImage(
             $equipment,
             $uploadResult['filename'],
@@ -46,14 +50,9 @@ class ImageService
             $uploadResult['height'] ?? null,
             null, // alt_text
             null, // title
-            $isMain,
-            $this->getNextSortOrder($equipment->getId())
+            $isMain || count($existingImages) === 0, // première image = principale
+            $sortOrder
         );
-
-        // Si c'est la première image, la définir comme principale
-        if ($this->imageRepository->getCountByEquipment($equipment->getId()) === 0) {
-            $image->setIsMain(true);
-        }
 
         // Sauvegarder
         $this->imageRepository->save($image);

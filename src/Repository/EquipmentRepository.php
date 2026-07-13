@@ -2,16 +2,19 @@
 namespace App\Repository;
 
 use App\Entity\Equipment;
+use App\Entity\Category;
 use App\Entity\Enum\EquipmentCategory;
 use App\Core\Repository\AbstractRepository;
 use App\Core\Repository\Criteria\Criteria;
 
 class EquipmentRepository extends AbstractRepository implements EquipmentRepositoryInterface
 {
+    protected CategoryRepository $categoryRepository;
     protected function initialize(): void
     {
         $this->tableName = 'equipment';
         $this->entityClass = Equipment::class;
+        $this->categoryRepository = new CategoryRepository($this->db);
     }
 
     /**
@@ -287,6 +290,56 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
                 }
             }
         }
+    }
+
+    /**
+     * ✅ Surcharge de hydrate pour gérer la catégorie
+     */
+    protected function hydrate(array $data): object
+    {
+        // Créer l'entité sans constructeur
+        $reflection = new \ReflectionClass($this->entityClass);
+        $entity = $reflection->newInstanceWithoutConstructor();
+
+        foreach ($data as $field => $value) {
+            $propertyName = $this->mapFieldToProperty($field);
+            if (!$propertyName || !$reflection->hasProperty($propertyName)) {
+                continue;
+            }
+
+            $property = $reflection->getProperty($propertyName);
+            $type = $property->getType();
+
+            if ($value === null) {
+                $property->setValue($entity, null);
+                continue;
+            }
+
+            // ✅ Gérer spécifiquement la catégorie
+            if ($propertyName === 'category') {
+                // Récupérer l'objet Category à partir du slug
+                $category = $this->categoryRepository->findBySlug($value);
+                if ($category) {
+                    $property->setValue($entity, $category);
+                }
+                continue;
+            }
+
+            // ✅ Gérer les autres types
+            if ($type && !$type->isBuiltin()) {
+                $typeName = $type->getName();
+
+                if (enum_exists($typeName)) {
+                    $value = $typeName::tryFrom($value);
+                } elseif ($typeName === \DateTimeImmutable::class) {
+                    $value = new \DateTimeImmutable($value);
+                }
+            }
+
+            $property->setValue($entity, $value);
+        }
+
+        return $entity;
     }
 
 

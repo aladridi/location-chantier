@@ -53,6 +53,7 @@ class EquipmentImage
     // Getters
     public function getId(): ?int { return $this->id; }
     public function getEquipment(): Equipment { return $this->equipment; }
+    public function getEquipmentId(): int { return $this->equipment->getId(); }
     public function getFilename(): string { return $this->filename; }
     public function getOriginalName(): string { return $this->originalName; }
     public function getPath(): string { return $this->path; }
@@ -172,6 +173,7 @@ class EquipmentImage
     {
         return [
             'id' => $this->id,
+            'equipment_id' => $this->getEquipmentId(),
             'filename' => $this->filename,
             'original_name' => $this->originalName,
             'size' => $this->size,

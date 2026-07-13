@@ -3,13 +3,14 @@ namespace App\Core\Http;
 
 class Request
 {
-    public function __construct(
-        private array $query = [],
-        private array $request = [],
-        private array $server = [],
-        private array $files = [],
-        private array $cookies = []
-    ) {
+    private array $query = [];
+    private array $request = [];
+    private array $server = [];
+    private array $files = [];
+    private array $cookies = [];
+
+    public function __construct()
+    {
         $this->query = $_GET;
         $this->request = $_POST;
         $this->server = $_SERVER;
@@ -62,5 +63,45 @@ class Request
             }
         }
         return $headers;
+    }
+
+    /**
+     * ✅ Récupère les fichiers uploadés
+     */
+    public function getFiles(): array
+    {
+        return $this->files;
+    }
+
+    /**
+     * ✅ Récupère un fichier spécifique
+     */
+    public function getFile(string $key): ?array
+    {
+        return $this->files[$key] ?? null;
+    }
+
+    /**
+     * ✅ Vérifie si un fichier a été uploadé
+     */
+    public function hasFile(string $key): bool
+    {
+        return isset($this->files[$key]) && $this->files[$key]['error'] === UPLOAD_ERR_OK;
+    }
+
+    /**
+     * ✅ Récupère les paramètres GET
+     */
+    public function getQuery(): array
+    {
+        return $this->query;
+    }
+
+    /**
+     * ✅ Récupère les paramètres POST
+     */
+    public function getPost(): array
+    {
+        return $this->request;
     }
 }
