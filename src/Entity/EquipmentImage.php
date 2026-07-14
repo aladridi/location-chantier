@@ -4,7 +4,7 @@ namespace App\Entity;
 class EquipmentImage
 {
     private ?int $id = null;
-    private Equipment $equipment;
+    private ?Equipment $equipment = null;
     private string $filename;
     private string $originalName;
     private string $path;
@@ -52,8 +52,17 @@ class EquipmentImage
 
     // Getters
     public function getId(): ?int { return $this->id; }
-    public function getEquipment(): Equipment { return $this->equipment; }
-    public function getEquipmentId(): int { return $this->equipment->getId(); }
+
+    public function getEquipment(): ?Equipment  // ✅ Rendre nullable
+    {
+        return $this->equipment;
+    }
+
+    public function getEquipmentId(): ?int
+    {
+        return $this->equipment ? $this->equipment->getId() : null;
+    }
+
     public function getFilename(): string { return $this->filename; }
     public function getOriginalName(): string { return $this->originalName; }
     public function getPath(): string { return $this->path; }
@@ -168,6 +177,29 @@ class EquipmentImage
     {
         return '/uploads/equipment/original/' . $this->filename;
     }
+
+
+
+
+
+    // ✅ Ajout de la méthode getThumbnailUrl
+    public function getThumbnailUrl(): string
+    {
+        return '/uploads/equipment/thumbnail/' . $this->filename;
+    }
+
+    // ✅ Ajout de la méthode getMediumUrl
+    public function getMediumUrl(): string
+    {
+        return '/uploads/equipment/medium/' . $this->filename;
+    }
+
+    // ✅ Ajout de la méthode getLargeUrl
+    public function getLargeUrl(): string
+    {
+        return '/uploads/equipment/large/' . $this->filename;
+    }
+
 
     public function toArray(): array
     {

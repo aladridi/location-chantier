@@ -1,7 +1,6 @@
 <?php
-namespace App\Core\Upload;
 
-use App\Core\Upload\Exceptions\UploadException;
+namespace App\Core\Upload;
 
 class ImageUpload extends AbstractUpload
 {
@@ -10,182 +9,436 @@ class ImageUpload extends AbstractUpload
         'image/png',
         'image/gif',
         'image/webp',
-        'image/svg+xml'
-    ];
-
-    protected array $allowedExtensions = [
-        'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'
+        'image/svg+xml',
     ];
 
     protected array $thumbnails = [
-        'thumbnail' => ['width' => 150, 'height' => 150, 'crop' => true],
-        'medium' => ['width' => 400, 'height' => 400, 'crop' => false],
-        'large' => ['width' => 1200, 'height' => 1200, 'crop' => false],
+        'thumbnail' => [
+            'width'  => 150,
+            'height' => 150,
+            'crop'   => true,
+        ],
+        'medium' => [
+            'width'  => 400,
+            'height' => 400,
+            'crop'   => false,
+        ],
+        'large' => [
+            'width'  => 1200,
+            'height' => 1200,
+            'crop'   => false,
+        ],
     ];
 
     public function __construct(string $uploadDir)
     {
+        /*
+         * Appelle le constructeur parent.
+         * Seul le dossier racine uploads/ est créé ici.
+         */
         parent::__construct($uploadDir);
-        $this->ensureThumbnailDirectories();
     }
 
-    public function upload(array $file, ?string $subDirectory = null): array
-    {
-        $result = parent::upload($file, $subDirectory);
-        $this->generateThumbnails($result['full_path'], $subDirectory, $result['filename']);
+    /**
+     * Upload l'image et génère ses différentes tailles.
+     */
+    public function upload(
+        array $file,
+        ?string $subDirectory = null
+    ): array {
+        $result = parent::upload(
+            $file,
+            $subDirectory
+        );
+
+        /*
+         * Les dossiers sont créés dans le sous-répertoire demandé :
+         *
+         * uploads/equipment/thumbnail/
+         * uploads/equipment/medium/
+         * uploads/equipment/large/
+         */
+        $this->ensureThumbnailDirectories(
+            $subDirectory
+        );
+
+        $this->generateThumbnails(
+            $result['full_path'],
+            $subDirectory,
+            $result['filename']
+        );
+
         return $result;
     }
 
-    public function delete(string $filename, ?string $subDirectory = null): bool
-    {
-        $deleted = parent::delete($filename, $subDirectory);
+    /**
+     * Supprime l'image originale et ses miniatures.
+     */
+    public function delete(
+        string $filename,
+        ?string $subDirectory = null
+    ): bool {
+        $originalDeleted = parent::delete(
+            $filename,
+            $subDirectory
+        );
 
-        foreach ($this->thumbnails as $name => $config) {
-            $thumbnailPath = $this->getThumbnailPath($filename, $name, $subDirectory);
-            if (file_exists($thumbnailPath)) {
+        foreach ($this->thumbnails as $size => $config) {
+            $thumbnailPath = $this->getThumbnailPath(
+                $filename,
+                $size,
+                $subDirectory
+            );
+
+            if (is_file($thumbnailPath)) {
                 unlink($thumbnailPath);
             }
         }
 
-        return $deleted;
+        return $originalDeleted;
     }
 
-    public function getThumbnailUrl(string $filename, string $size = 'medium', ?string $subDirectory = null): string
-    {
+    /**
+     * Retourne l'URL d'une miniature.
+     */
+    public function getThumbnailUrl(
+        string $filename,
+        string $size = 'medium',
+        ?string $subDirectory = null
+    ): string {
         if (!isset($this->thumbnails[$size])) {
-            return $this->getUrl($filename, $subDirectory);
+            $size = 'medium';
         }
 
-        $path = $this->getRelativePath($filename, $subDirectory);
-        return '/uploads/' . $size . '/' . ltrim($path, '/');
+        return '/uploads/'
+            . $this->normalizeSubDirectory($subDirectory)
+            . $size
+            . '/'
+            . ltrim($filename, '/\\');
     }
 
-    protected function generateThumbnails(string $sourcePath, ?string $subDirectory, string $filename): void
-    {
+    /**
+     * Génère toutes les miniatures.
+     */
+    protected function generateThumbnails(
+        string $sourcePath,
+        ?string $subDirectory,
+        string $filename
+    ): void {
         $imageInfo = @getimagesize($sourcePath);
+
+        /*
+         * Les fichiers SVG sont autorisés à l'upload,
+         * mais GD ne permet pas de générer leur miniature nativement.
+         */
         if (!$imageInfo) {
             return;
         }
 
-        list($width, $height) = $imageInfo;
-        $mimeType = $imageInfo['mime'];
+        $originalWidth = (int) $imageInfo[0];
+        $originalHeight = (int) $imageInfo[1];
+        $mimeType = $imageInfo['mime'] ?? null;
 
-        foreach ($this->thumbnails as $name => $config) {
+        if (
+            $originalWidth <= 0 ||
+            $originalHeight <= 0 ||
+            !$mimeType
+        ) {
+            return;
+        }
+
+        foreach ($this->thumbnails as $size => $config) {
             $this->generateThumbnail(
                 $sourcePath,
                 $filename,
-                $name,
+                $size,
                 $config,
                 $subDirectory,
-                $width,
-                $height,
+                $originalWidth,
+                $originalHeight,
                 $mimeType
             );
         }
     }
 
+    /**
+     * Génère une miniature.
+     */
     protected function generateThumbnail(
         string $sourcePath,
         string $filename,
-        string $name,
+        string $size,
         array $config,
         ?string $subDirectory,
         int $originalWidth,
         int $originalHeight,
         string $mimeType
     ): void {
-        $targetWidth = $config['width'];
-        $targetHeight = $config['height'];
-        $crop = $config['crop'] ?? false;
+        $maxWidth = (int) $config['width'];
+        $maxHeight = (int) $config['height'];
+        $crop = (bool) ($config['crop'] ?? false);
 
-        if ($crop) {
-            $ratio = max($targetWidth / $originalWidth, $targetHeight / $originalHeight);
-            $newWidth = intval($originalWidth * $ratio);
-            $newHeight = intval($originalHeight * $ratio);
-            $srcX = intval(($newWidth - $targetWidth) / 2);
-            $srcY = intval(($newHeight - $targetHeight) / 2);
-        } else {
-            $ratio = min($targetWidth / $originalWidth, $targetHeight / $originalHeight);
-            $newWidth = intval($originalWidth * $ratio);
-            $newHeight = intval($originalHeight * $ratio);
-            $srcX = 0;
-            $srcY = 0;
-        }
+        $source = $this->createImageFromFile(
+            $sourcePath,
+            $mimeType
+        );
 
-        $source = $this->createImageFromFile($sourcePath, $mimeType);
         if (!$source) {
             return;
         }
 
-        $target = imagecreatetruecolor($targetWidth, $targetHeight);
-
-        if ($mimeType === 'image/png' || $mimeType === 'image/gif') {
-            imagecolortransparent($target, imagecolorallocatealpha($target, 0, 0, 0, 127));
-            imagealphablending($target, false);
-            imagesavealpha($target, true);
-        }
-
         if ($crop) {
-            imagecopyresampled($target, $source, 0, 0, $srcX, $srcY, $targetWidth, $targetHeight, $newWidth, $newHeight);
+            $targetWidth = $maxWidth;
+            $targetHeight = $maxHeight;
+
+            $targetRatio = $targetWidth / $targetHeight;
+            $sourceRatio = $originalWidth / $originalHeight;
+
+            if ($sourceRatio > $targetRatio) {
+                /*
+                 * Image trop large horizontalement :
+                 * on découpe à gauche et à droite.
+                 */
+                $sourceHeight = $originalHeight;
+                $sourceWidth = (int) round(
+                    $originalHeight * $targetRatio
+                );
+
+                $sourceX = (int) round(
+                    ($originalWidth - $sourceWidth) / 2
+                );
+
+                $sourceY = 0;
+            } else {
+                /*
+                 * Image trop haute :
+                 * on découpe en haut et en bas.
+                 */
+                $sourceWidth = $originalWidth;
+                $sourceHeight = (int) round(
+                    $originalWidth / $targetRatio
+                );
+
+                $sourceX = 0;
+
+                $sourceY = (int) round(
+                    ($originalHeight - $sourceHeight) / 2
+                );
+            }
         } else {
-            imagecopyresampled($target, $source, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
+            /*
+             * L'image conserve son ratio.
+             * Elle tient dans les dimensions maximales configurées.
+             */
+            $ratio = min(
+                $maxWidth / $originalWidth,
+                $maxHeight / $originalHeight,
+                1
+            );
+
+            $targetWidth = max(
+                1,
+                (int) round($originalWidth * $ratio)
+            );
+
+            $targetHeight = max(
+                1,
+                (int) round($originalHeight * $ratio)
+            );
+
+            $sourceX = 0;
+            $sourceY = 0;
+            $sourceWidth = $originalWidth;
+            $sourceHeight = $originalHeight;
         }
 
-        $thumbnailPath = $this->getThumbnailPath($filename, $name, $subDirectory);
-        $this->ensureDirectoryExists(dirname($thumbnailPath));
+        $target = imagecreatetruecolor(
+            $targetWidth,
+            $targetHeight
+        );
 
-        $this->saveImage($target, $thumbnailPath, $mimeType);
+        if (!$target) {
+            unset($source);
+            return;
+        }
 
-        // ✅ Supprimer imagedestroy() - plus nécessaire en PHP 8.0+
-        // Les ressources sont automatiquement libérées
+        $this->preserveTransparency(
+            $target,
+            $mimeType
+        );
+
+        imagecopyresampled(
+            $target,
+            $source,
+            0,
+            0,
+            $sourceX,
+            $sourceY,
+            $targetWidth,
+            $targetHeight,
+            $sourceWidth,
+            $sourceHeight
+        );
+
+        $thumbnailPath = $this->getThumbnailPath(
+            $filename,
+            $size,
+            $subDirectory
+        );
+
+        /*
+         * Sécurité supplémentaire :
+         * même si ensureThumbnailDirectories() n'a pas été appelé,
+         * le dossier sera créé ici.
+         */
+        $this->ensureDirectoryExists(
+            dirname($thumbnailPath)
+        );
+
+        $this->saveImage(
+            $target,
+            $thumbnailPath,
+            $mimeType
+        );
+
+        unset($source, $target);
     }
 
-    protected function createImageFromFile(string $path, string $mimeType)
-    {
+    /**
+     * Charge une image avec GD.
+     */
+    protected function createImageFromFile(
+        string $path,
+        string $mimeType
+    ) {
         switch ($mimeType) {
             case 'image/jpeg':
-                return imagecreatefromjpeg($path);
+                return @imagecreatefromjpeg($path);
+
             case 'image/png':
-                return imagecreatefrompng($path);
+                return @imagecreatefrompng($path);
+
             case 'image/gif':
-                return imagecreatefromgif($path);
+                return @imagecreatefromgif($path);
+
             case 'image/webp':
-                return imagecreatefromwebp($path);
+                return function_exists('imagecreatefromwebp')
+                    ? @imagecreatefromwebp($path)
+                    : null;
+
             default:
                 return null;
         }
     }
 
-    protected function saveImage($image, string $path, string $mimeType): void
-    {
+    /**
+     * Préserve la transparence des images compatibles.
+     */
+    protected function preserveTransparency(
+        $image,
+        string $mimeType
+    ): void {
+        if (
+            !in_array(
+                $mimeType,
+                ['image/png', 'image/gif', 'image/webp'],
+                true
+            )
+        ) {
+            return;
+        }
+
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+
+        $transparent = imagecolorallocatealpha(
+            $image,
+            0,
+            0,
+            0,
+            127
+        );
+
+        imagefilledrectangle(
+            $image,
+            0,
+            0,
+            imagesx($image),
+            imagesy($image),
+            $transparent
+        );
+    }
+
+    /**
+     * Enregistre la miniature.
+     */
+    protected function saveImage(
+        $image,
+        string $path,
+        string $mimeType
+    ): void {
         switch ($mimeType) {
             case 'image/jpeg':
                 imagejpeg($image, $path, 85);
                 break;
+
             case 'image/png':
                 imagepng($image, $path, 8);
                 break;
+
             case 'image/gif':
                 imagegif($image, $path);
                 break;
+
             case 'image/webp':
-                imagewebp($image, $path, 80);
+                if (function_exists('imagewebp')) {
+                    imagewebp($image, $path, 80);
+                } else {
+                    imagejpeg($image, $path, 85);
+                }
                 break;
+
             default:
                 imagejpeg($image, $path, 85);
+                break;
         }
     }
 
-    protected function getThumbnailPath(string $filename, string $size, ?string $subDirectory = null): string
-    {
-        $relativePath = $this->getRelativePath($filename, $subDirectory);
-        return $this->uploadDir . $size . '/' . ltrim($relativePath, '/');
+    /**
+     * Retourne le chemin physique d'une miniature.
+     */
+    protected function getThumbnailPath(
+        string $filename,
+        string $size,
+        ?string $subDirectory = null
+    ): string {
+        $relativePath = $this->normalizeSubDirectory(
+            $subDirectory
+        );
+
+        $relativePath .= $size
+            . '/'
+            . ltrim($filename, '/\\');
+
+        return $this->getFullPath($relativePath);
     }
 
-    protected function ensureThumbnailDirectories(): void
-    {
-        foreach ($this->thumbnails as $name => $config) {
-            $this->ensureDirectoryExists($this->uploadDir . $name . '/');
+    /**
+     * Crée les dossiers des miniatures au bon emplacement.
+     */
+    protected function ensureThumbnailDirectories(
+        ?string $subDirectory = null
+    ): void {
+        $baseRelativePath = $this->normalizeSubDirectory(
+            $subDirectory
+        );
+
+        foreach ($this->thumbnails as $size => $config) {
+            $directory = $this->getFullPath(
+                $baseRelativePath . $size
+            );
+
+            $this->ensureDirectoryExists($directory);
         }
     }
 }

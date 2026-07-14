@@ -62,16 +62,30 @@
         <table v-else class="table table-striped table-hover mb-0">
           <thead>
           <tr>
+            <th style="width: 60px;">Image</th>
             <th>Nom</th>
             <th>Catégorie</th>
             <th>Prix/jour</th>
             <th>Statut</th>
             <th>Maintenance</th>
-            <th>Actions</th>
+            <th style="width: 120px;">Actions</th>
           </tr>
           </thead>
           <tbody>
           <tr v-for="item in paginatedEquipment" :key="item.id">
+            <td>
+              <!-- ✅ Image de l'équipement -->
+              <img
+                  v-if="item.thumbnail_url"
+                  :src="item.thumbnail_url"
+                  :alt="item.name"
+                  class="equipment-thumbnail"
+                  @error="handleImageError"
+              >
+              <div v-else class="equipment-thumbnail-placeholder">
+                <i class="bi bi-image"></i>
+              </div>
+            </td>
             <td>{{ item.name }}</td>
             <td>
               <span class="badge bg-info">{{ formatCategory(item.category) }}</span>
@@ -105,6 +119,7 @@
         </table>
       </div>
 
+      <!-- Pagination -->
       <div class="card-footer bg-white" v-if="equipment.length > 0">
         <nav>
           <ul class="pagination justify-content-center mb-0">
@@ -148,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useEquipmentStore } from '../stores/equipment'
 
 const equipmentStore = useEquipmentStore()
@@ -175,6 +190,18 @@ const itemsPerPage = 10
 const itemToDelete = ref(null)
 const deleting = ref(false)
 const deleteModalRef = ref(null)
+
+// ✅ Gestion de l'erreur d'image
+const handleImageError = (event) => {
+  event.target.style.display = 'none'
+  const parent = event.target.parentElement
+  if (parent) {
+    const placeholder = parent.querySelector('.equipment-thumbnail-placeholder')
+    if (placeholder) {
+      placeholder.style.display = 'flex'
+    }
+  }
+}
 
 const formatCategory = (cat) => {
   const labels = {
@@ -244,7 +271,7 @@ const formatPrice = (price) => {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
     currency: 'EUR'
-  }).format(price)
+  }).format(price || 0)
 }
 
 const confirmDelete = (item) => {
@@ -278,7 +305,27 @@ const paginatedEquipment = computed(() => {
 </script>
 
 <style scoped>
-.bi {
-  line-height: 1;
+/* ✅ Styles pour les miniatures */
+.equipment-thumbnail {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 0.25rem;
+}
+
+.equipment-thumbnail-placeholder {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  border-radius: 0.25rem;
+  color: #dee2e6;
+  font-size: 1.5rem;
+}
+
+.table td {
+  vertical-align: middle;
 }
 </style>

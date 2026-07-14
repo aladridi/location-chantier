@@ -67,6 +67,52 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
         return $this->hydrateMultiple($results);
     }
 
+    public function count(array $criteria = []): int
+    {
+        $sql = "SELECT COUNT(*) as total FROM {$this->tableName}";
+        $params = [];
+        $conditions = [];
+
+        // ✅ Gérer la recherche textuelle
+        if (!empty($criteria['search'])) {
+            $conditions[] = "(name LIKE ? OR category LIKE ?)";
+            $search = "%{$criteria['search']}%";
+            $params[] = $search;
+            $params[] = $search;
+        }
+
+        // ✅ Catégorie
+        if (!empty($criteria['category'])) {
+            $conditions[] = "category = ?";
+            $params[] = $criteria['category'];
+        }
+
+        // ✅ Disponibilité
+        if (isset($criteria['available']) && $criteria['available'] !== null) {
+            $conditions[] = "available = ?";
+            $params[] = $criteria['available'] ? 1 : 0;
+        }
+
+        // ✅ Prix minimum
+        if (isset($criteria['min_rate']) && $criteria['min_rate'] !== null && $criteria['min_rate'] !== '') {
+            $conditions[] = "daily_rate >= ?";
+            $params[] = (float) $criteria['min_rate'];
+        }
+
+        // ✅ Prix maximum
+        if (isset($criteria['max_rate']) && $criteria['max_rate'] !== null && $criteria['max_rate'] !== '') {
+            $conditions[] = "daily_rate <= ?";
+            $params[] = (float) $criteria['max_rate'];
+        }
+
+        if (!empty($conditions)) {
+            $sql .= " WHERE " . implode(' AND ', $conditions);
+        }
+
+        $result = $this->db->query($sql, $params);
+        return (int) ($result[0]['total'] ?? 0);
+    }
+
     /**
      * Trouve les équipements disponibles dans une période donnée
      */
@@ -103,41 +149,42 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
         $params = [];
         $conditions = [];
 
-        // Critères de recherche
-        if (!empty($criteria['name'])) {
-            $conditions[] = "name LIKE ?";
-            $params[] = "%{$criteria['name']}%";
+        // ✅ Gérer la recherche textuelle
+        if (!empty($criteria['search'])) {
+            $conditions[] = "(name LIKE ? OR category LIKE ?)";
+            $search = "%{$criteria['search']}%";
+            $params[] = $search;
+            $params[] = $search;
         }
 
+        // ✅ Catégorie
         if (!empty($criteria['category'])) {
             $conditions[] = "category = ?";
             $params[] = $criteria['category'];
         }
 
-        if (isset($criteria['available'])) {
+        // ✅ Disponibilité
+        if (isset($criteria['available']) && $criteria['available'] !== null) {
             $conditions[] = "available = ?";
             $params[] = $criteria['available'] ? 1 : 0;
         }
 
-        if (!empty($criteria['needs_maintenance'])) {
-            $conditions[] = "(last_maintenance IS NULL OR last_maintenance < DATE_SUB(NOW(), INTERVAL 90 DAY))";
-        }
-
-        if (!empty($criteria['min_rate'])) {
+        // ✅ Prix minimum
+        if (isset($criteria['min_rate']) && $criteria['min_rate'] !== null && $criteria['min_rate'] !== '') {
             $conditions[] = "daily_rate >= ?";
-            $params[] = $criteria['min_rate'];
+            $params[] = (float) $criteria['min_rate'];
         }
 
-        if (!empty($criteria['max_rate'])) {
+        // ✅ Prix maximum
+        if (isset($criteria['max_rate']) && $criteria['max_rate'] !== null && $criteria['max_rate'] !== '') {
             $conditions[] = "daily_rate <= ?";
-            $params[] = $criteria['max_rate'];
+            $params[] = (float) $criteria['max_rate'];
         }
 
         if (!empty($conditions)) {
             $sql .= " WHERE " . implode(' AND ', $conditions);
         }
 
-        // Pagination
         if ($pagination) {
             if ($pagination->getOrder()) {
                 $orderClauses = [];
@@ -145,6 +192,8 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
                     $orderClauses[] = "{$field} {$direction}";
                 }
                 $sql .= " ORDER BY " . implode(', ', $orderClauses);
+            } else {
+                $sql .= " ORDER BY name ASC";
             }
 
             if ($pagination->getLimit() !== null) {

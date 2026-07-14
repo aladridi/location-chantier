@@ -150,8 +150,34 @@ abstract class AbstractRepository implements RepositoryInterface
         $conditions = [];
 
         foreach ($criteria as $field => $value) {
-            $conditions[] = "{$field} = ?";
-            $params[] = $value;
+            // ✅ Ignorer les champs qui ne sont pas des colonnes de la table
+            if ($field === 'search' || $field === 'min_rate' || $field === 'max_rate') {
+                continue;
+            }
+
+            // ✅ Gérer le cas où value est un tableau avec un opérateur
+            if (is_array($value) && isset($value['operator'])) {
+                switch ($value['operator']) {
+                    case '>':
+                    case '<':
+                    case '>=':
+                    case '<=':
+                    case '!=':
+                        $conditions[] = "{$field} {$value['operator']} ?";
+                        $params[] = $value['value'];
+                        break;
+                    case 'LIKE':
+                        $conditions[] = "{$field} LIKE ?";
+                        $params[] = "%{$value['value']}%";
+                        break;
+                    default:
+                        $conditions[] = "{$field} = ?";
+                        $params[] = $value;
+                }
+            } elseif (!is_array($value)) {
+                $conditions[] = "{$field} = ?";
+                $params[] = $value;
+            }
         }
 
         if (!empty($conditions)) {

@@ -209,7 +209,7 @@ return function (Container $container) {
     // ============================================
 
     // ✅ Configuration de l'upload
-    $uploadDir = __DIR__ . '/../public/uploads/equipment/';
+    $uploadDir = __DIR__ . '/../public/uploads/';
 
     // ✅ Créer l'ImageUpload
     $container->set(ImageUpload::class, function () use ($uploadDir) {
