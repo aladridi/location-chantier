@@ -14,7 +14,6 @@ class EquipmentImageRepository extends AbstractRepository
 
     /**
      * ✅ Surcharge de save pour gérer correctement les champs
-     * Cette méthode remplace celle du parent pour éviter les problèmes de mapping
      */
     public function save(object $entity): void
     {
@@ -96,8 +95,24 @@ class EquipmentImageRepository extends AbstractRepository
         }
     }
 
+
     /**
-     * Trouve les images d'un équipement
+     * ✅ Récupère une image par son ID avec l'équipement chargé
+     */
+    public function find(int $id): ?object
+    {
+        $sql = "SELECT * FROM {$this->tableName} WHERE id = :id";
+        $result = $this->db->query($sql, ['id' => $id]);
+
+        if (empty($result)) {
+            return null;
+        }
+
+        return $this->hydrate($result[0]);
+    }
+
+    /**
+     * ✅ Trouve les images d'un équipement
      */
     public function findByEquipment(int $equipmentId): array
     {
@@ -111,10 +126,58 @@ class EquipmentImageRepository extends AbstractRepository
     }
 
     /**
-     * Trouve l'image principale d'un équipement
+     * ✅ Récupère les images principales pour plusieurs équipements
+     */
+    public function findMainImagesForEquipment(array $equipmentIds): array
+    {
+        // ✅ Vérifier si le tableau est vide
+        if (empty($equipmentIds)) {
+            return [];
+        }
+
+        // ✅ Filtrer les IDs null ou invalides
+        $validIds = array_filter($equipmentIds, function($id) {
+            return $id !== null && $id > 0;
+        });
+
+        if (empty($validIds)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($validIds), '?'));
+
+        $sql = "SELECT * FROM {$this->tableName} 
+                WHERE equipment_id IN ({$placeholders}) 
+                AND is_main = 1 
+                AND is_active = 1";
+
+        $results = $this->db->query($sql, $validIds);
+
+        $images = [];
+        foreach ($results as $row) {
+            $image = $this->hydrate($row);
+            $equipmentId = $image->getEquipmentId();
+            if ($equipmentId !== null) {
+                $images[$equipmentId] = $image;
+            }
+        }
+
+        return $images;
+    }
+
+
+
+
+    /**
+     * Définit l'image principale
      */
     public function findMainImage(int $equipmentId): ?EquipmentImage
     {
+        // ✅ Vérifier que l'ID est valide
+        if ($equipmentId <= 0) {
+            return null;
+        }
+
         $sql = "SELECT * FROM {$this->tableName} 
                 WHERE equipment_id = :equipment_id 
                 AND is_main = 1 
@@ -128,24 +191,6 @@ class EquipmentImageRepository extends AbstractRepository
         }
 
         return $this->hydrate($results[0]);
-    }
-
-    /**
-     * Définit l'image principale
-     */
-    public function setMainImage(int $imageId, int $equipmentId): void
-    {
-        // Réinitialiser toutes les images de l'équipement
-        $this->db->execute(
-            "UPDATE {$this->tableName} SET is_main = 0 WHERE equipment_id = ?",
-            [$equipmentId]
-        );
-
-        // Définir l'image principale
-        $this->db->execute(
-            "UPDATE {$this->tableName} SET is_main = 1 WHERE id = ? AND equipment_id = ?",
-            [$imageId, $equipmentId]
-        );
     }
 
     /**
@@ -193,12 +238,16 @@ class EquipmentImageRepository extends AbstractRepository
             }
         }
     }
-
     /**
      * Compte les images d'un équipement
      */
     public function getCountByEquipment(int $equipmentId): int
     {
+        // ✅ Vérifier que l'ID est valide
+        if ($equipmentId <= 0) {
+            return 0;
+        }
+
         $sql = "SELECT COUNT(*) as count FROM {$this->tableName} 
                 WHERE equipment_id = :equipment_id AND is_active = 1";
 
@@ -221,20 +270,54 @@ class EquipmentImageRepository extends AbstractRepository
     }
 
     /**
-     * Hydrate une image (surcharge pour gérer l'équipement)
+     * ✅ Surcharge de hydrate pour gérer l'équipement
      */
     protected function hydrate(array $data): object
     {
-        // Si equipment_id est présent, récupérer l'équipement
-        if (isset($data['equipment_id'])) {
-            $equipmentRepo = new EquipmentRepository($this->db);
-            $equipment = $equipmentRepo->find($data['equipment_id']);
-            if ($equipment) {
-                $data['equipment'] = $equipment;
+        // Créer l'entité sans constructeur
+        $reflection = new \ReflectionClass($this->entityClass);
+        $entity = $reflection->newInstanceWithoutConstructor();
+
+        foreach ($data as $field => $value) {
+            $propertyName = $this->mapFieldToProperty($field);
+            if (!$propertyName || !$reflection->hasProperty($propertyName)) {
+                continue;
             }
-            unset($data['equipment_id']);
+
+            $property = $reflection->getProperty($propertyName);
+
+            // ✅ Si la valeur est null, laisser null
+            if ($value === null) {
+                $property->setValue($entity, null);
+                continue;
+            }
+
+            // ✅ Gérer spécifiquement le champ equipment_id
+            if ($field === 'equipment_id' && $propertyName === 'equipment') {
+                // Récupérer l'équipement
+                $equipmentRepo = new EquipmentRepository($this->db);
+                $equipment = $equipmentRepo->find((int) $value);
+                if ($equipment) {
+                    $property->setValue($entity, $equipment);
+                }
+                continue;
+            }
+
+            // ✅ Gérer les autres types
+            $type = $property->getType();
+            if ($type && !$type->isBuiltin()) {
+                $typeName = $type->getName();
+
+                if (enum_exists($typeName)) {
+                    $value = $typeName::tryFrom($value);
+                } elseif ($typeName === \DateTimeImmutable::class && $value) {
+                    $value = new \DateTimeImmutable($value);
+                }
+            }
+
+            $property->setValue($entity, $value);
         }
 
-        return parent::hydrate($data);
+        return $entity;
     }
 }

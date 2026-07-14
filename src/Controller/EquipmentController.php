@@ -22,34 +22,60 @@ class EquipmentController
         private EquipmentImageRepository $imageRepository
     ) {}
 
+    /**
+     * Liste des équipements avec leurs images
+     */
     public function list(Request $request): Response
     {
-        // Récupérer les paramètres de filtrage
-        $filters = [
-            'category' => $request->get('category'),
-            'available' => $request->get('available') === 'true' ? true : ($request->get('available') === 'false' ? false : null),
-            'min_rate' => $request->get('min_rate'),
-            'max_rate' => $request->get('max_rate'),
-        ];
+        try {
+            $filters = [
+                'category' => $request->get('category'),
+                'available' => $request->get('available') === 'true' ? true :
+                    ($request->get('available') === 'false' ? false : null),
+                'min_rate' => $request->get('min_rate'),
+                'max_rate' => $request->get('max_rate'),
+                'search' => $request->get('search'),
+            ];
 
-        // Pagination
-        $pagination = Criteria::create()
-            ->orderBy('name', 'ASC')
-            ->limit($request->get('limit', 20))
-            ->offset($request->get('offset', 0));
+            $pagination = Criteria::create()
+                ->orderBy('name', 'ASC')
+                ->limit((int) $request->get('limit', 20))
+                ->offset((int) $request->get('offset', 0));
 
-        $equipments = $this->repository->search($filters, $pagination);
-        $stats = $this->repository->getStatistics();
+            $equipments = $this->repository->search($filters, $pagination);
+            $stats = $this->repository->getStatistics();
 
-        return (new Response())->json([
-            'success' => true,
-            'data' => array_map(fn($e) => $e->toArray(), $equipments),
-            'pagination' => [
-                'limit' => $pagination->getLimit(),
-                'offset' => $pagination->getOffset(),
-            ],
-            'stats' => $stats,
-        ]);
+            $equipmentsData = [];
+            foreach ($equipments as $equipment) {
+                $data = $equipment->toArray();
+
+                $mainImage = $this->imageRepository->findMainImage($equipment->getId());
+                if ($mainImage) {
+                    $data['image_url'] = $mainImage->getUrl('medium');
+                    $data['thumbnail_url'] = $mainImage->getThumbnailUrl(); // ✅ Maintenant cette méthode existe
+                } else {
+                    $data['image_url'] = null;
+                    $data['thumbnail_url'] = null;
+                }
+
+                $equipmentsData[] = $data;
+            }
+
+            return (new Response())->json([
+                'success' => true,
+                'data' => $equipmentsData,
+                'pagination' => [
+                    'limit' => (int) $request->get('limit', 20),
+                    'offset' => (int) $request->get('offset', 0),
+                ],
+                'stats' => $stats,
+            ]);
+
+        } catch (\Exception $e) {
+            return (new Response())->json([
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function show(Request $request, int $id): Response
@@ -252,6 +278,7 @@ class EquipmentController
     public function uploadImage(Request $request, int $id): Response
     {
         try {
+            // ✅ Vérifier que l'équipement existe
             $equipment = $this->repository->find($id);
 
             if (!$equipment) {
@@ -289,6 +316,7 @@ class EquipmentController
             // ✅ Upload de l'image
             $image = $this->imageService->uploadForEquipment($equipment, $file, false);
 
+            // ✅ Retourner la réponse avec l'image correctement chargée
             return (new Response())->json([
                 'success' => true,
                 'data' => $image->toArray(),
