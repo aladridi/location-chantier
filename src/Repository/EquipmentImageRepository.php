@@ -270,54 +270,123 @@ class EquipmentImageRepository extends AbstractRepository
     }
 
     /**
-     * ✅ Surcharge de hydrate pour gérer l'équipement
+     * ✅ Surcharge de hydrate pour charger l'équipement
      */
     protected function hydrate(array $data): object
     {
-        // Créer l'entité sans constructeur
         $reflection = new \ReflectionClass($this->entityClass);
         $entity = $reflection->newInstanceWithoutConstructor();
 
         foreach ($data as $field => $value) {
-            $propertyName = $this->mapFieldToProperty($field);
-            if (!$propertyName || !$reflection->hasProperty($propertyName)) {
+
+            // Trouver la propriété liée à la colonne SQL
+            $property = $this->findPropertyByColumn($reflection, $field);
+
+            if (!$property) {
                 continue;
             }
 
-            $property = $reflection->getProperty($propertyName);
-
-            // ✅ Si la valeur est null, laisser null
+            // Gérer les valeurs nulles
             if ($value === null) {
                 $property->setValue($entity, null);
                 continue;
             }
 
-            // ✅ Gérer spécifiquement le champ equipment_id
-            if ($field === 'equipment_id' && $propertyName === 'equipment') {
-                // Récupérer l'équipement
-                $equipmentRepo = new EquipmentRepository($this->db);
-                $equipment = $equipmentRepo->find((int) $value);
-                if ($equipment) {
-                    $property->setValue($entity, $equipment);
-                }
+
+            /*
+             * Gestion des relations
+             * Exemple :
+             * equipment_id => Equipment
+             */
+            $relationAttributes = $property->getAttributes(\App\Attribute\Relation::class);
+
+            if (!empty($relationAttributes)) {
+
+                $relation = $relationAttributes[0]->newInstance();
+
+                $repository = $this->getRepository($relation->targetEntity);
+
+                $relatedEntity = $repository->find((int) $value);
+
+                $property->setValue($entity, $relatedEntity);
+
                 continue;
             }
 
-            // ✅ Gérer les autres types
+
+            /*
+             * Gestion des types PHP natifs
+             */
             $type = $property->getType();
-            if ($type && !$type->isBuiltin()) {
+
+            if ($type instanceof \ReflectionNamedType) {
+
                 $typeName = $type->getName();
 
+                // Enum PHP
                 if (enum_exists($typeName)) {
                     $value = $typeName::tryFrom($value);
-                } elseif ($typeName === \DateTimeImmutable::class && $value) {
+                }
+
+                // DateTimeImmutable
+                elseif ($typeName === \DateTimeImmutable::class) {
                     $value = new \DateTimeImmutable($value);
                 }
+
+                // Boolean SQL (0/1)
+                elseif ($typeName === 'bool') {
+                    $value = (bool) $value;
+                }
+
+                // Integer SQL
+                elseif ($typeName === 'int') {
+                    $value = (int) $value;
+                }
+
+                // Float SQL
+                elseif ($typeName === 'float') {
+                    $value = (float) $value;
+                }
             }
+
 
             $property->setValue($entity, $value);
         }
 
         return $entity;
+    }
+    /**
+     * ✅ Définit l'image principale
+     */
+    public function setMainImage(int $imageId, int $equipmentId): void
+    {
+        // ✅ Vérifier que les IDs sont valides
+        if ($imageId <= 0 || $equipmentId <= 0) {
+            throw new \InvalidArgumentException("IDs invalides");
+        }
+
+        // ✅ Réinitialiser toutes les images de l'équipement
+        $this->db->execute(
+            "UPDATE {$this->tableName} SET is_main = 0 WHERE equipment_id = ?",
+            [$equipmentId]
+        );
+
+        // ✅ Définir l'image principale
+        $affected = $this->db->execute(
+            "UPDATE {$this->tableName} SET is_main = 1 WHERE id = ? AND equipment_id = ?",
+            [$imageId, $equipmentId]
+        );
+
+        if ($affected === 0) {
+            throw new \RuntimeException("Impossible de définir l'image #{$imageId} comme principale");
+        }
+    }
+
+    protected function mapFieldToProperty(string $field): string
+    {
+        return match ($field) {
+            'equipment_id' => 'id',
+            default => parent::mapFieldToProperty($field),
+        };
     }
 }

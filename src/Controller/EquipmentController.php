@@ -414,11 +414,20 @@ class EquipmentController
 
 
     /**
-     * Définit l'image principale
+     * ✅ Définit l'image principale
      */
     public function setMainImage(Request $request, int $id): Response
     {
         try {
+            // ✅ Vérifier que l'équipement existe
+            $equipment = $this->repository->find($id);
+            if (!$equipment) {
+                return (new Response())->json([
+                    'error' => "Équipement #{$id} non trouvé"
+                ], 404);
+            }
+
+            // ✅ Récupérer l'ID de l'image
             $data = $request->toArray();
             $imageId = $data['image_id'] ?? null;
 
@@ -428,18 +437,43 @@ class EquipmentController
                 ], 400);
             }
 
-            $success = $this->imageService->setMainImage($imageId, $id);
-
-            if (!$success) {
+            // ✅ Vérifier que l'image existe
+            $image = $this->imageRepository->find($imageId);
+            if (!$image) {
                 return (new Response())->json([
-                    'error' => 'Impossible de définir l\'image principale'
+                    'error' => "Image #{$imageId} non trouvée"
+                ], 404);
+            }
+            dump($image);
+            dump($id);
+            dump($image->getEquipmentId());
+            dump(get_class($image));die;
+
+            // ✅ Vérifier que l'image appartient à l'équipement
+            $imageEquipmentId = $image->getEquipmentId();
+
+            if ($imageEquipmentId !== $id) {
+                return (new Response())->json([
+                    'error' => "L'image #{$imageId} n'appartient pas à l'équipement #{$id}"
                 ], 400);
             }
 
+            // ✅ Définir l'image comme principale
+            $this->imageService->setMainImage($imageId, $id);
+
+            // ✅ Récupérer les images mises à jour
+            $mainImage = $this->imageRepository->findMainImage($id);
+            $allImages = $this->imageRepository->findByEquipment($id);
+
             return (new Response())->json([
                 'success' => true,
-                'message' => 'Image principale mise à jour'
+                'data' => [
+                    'main_image' => $mainImage ? $mainImage->toArray() : null,
+                    'images' => array_map(fn($img) => $img->toArray(), $allImages)
+                ],
+                'message' => 'Image principale définie avec succès'
             ]);
+
         } catch (\Exception $e) {
             return (new Response())->json([
                 'error' => $e->getMessage()

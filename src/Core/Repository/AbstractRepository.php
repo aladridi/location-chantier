@@ -374,6 +374,28 @@ abstract class AbstractRepository implements RepositoryInterface
         return $property;
     }
 
+    protected function findPropertyByColumn(
+        \ReflectionClass $reflection,
+        string $column
+    ): ?\ReflectionProperty {
+
+        foreach ($reflection->getProperties() as $property) {
+
+            $attributes = $property->getAttributes(Column::class);
+
+            foreach ($attributes as $attribute) {
+
+                $columnAttribute = $attribute->newInstance();
+
+                if ($columnAttribute->name === $column) {
+                    return $property;
+                }
+            }
+        }
+
+        return null;
+    }
+
     protected function mapPropertyToField(string $property): string
     {
         return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $property));
