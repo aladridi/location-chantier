@@ -9,7 +9,7 @@ class Relation
 {
     public function __construct(
         public readonly string $targetEntity,
-        public readonly string $type = 'manyToOne'
+        public readonly RelationType $type = RelationType::MANY_TO_ONE
     ) {
     }
 }

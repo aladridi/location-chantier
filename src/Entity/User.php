@@ -1,16 +1,31 @@
 <?php
 namespace App\Entity;
 
+use App\Attribute\Column;
+use App\Attribute\Id;
+use App\Attribute\Table;
+#[Entity]
+#[Table('users')]
 class User
 {
+    #[Id]
+    #[Column('id')]
     private ?int $id = null;
+    #[Column('username')]
     private string $username;
+    #[Column('email')]
     private string $email;
+    #[Column('password_hash')]
     private string $passwordHash;
+    #[Column('roles')]
     private array $roles = ['ROLE_USER'];
+    #[Column('active')]
     private bool $active = true;
+    #[Column('last_login')]
     private ?\DateTimeImmutable $lastLogin = null;
+    #[Column('created_at')]
     private \DateTimeImmutable $createdAt;
+    #[Column('updated_at')]
     private \DateTimeImmutable $updatedAt;
 
     public function __construct(

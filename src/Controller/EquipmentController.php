@@ -154,6 +154,7 @@ class EquipmentController
                 $equipment->setAvailable((bool) $data['available']);
             }
 
+
             $this->repository->save($equipment);
 
             return (new Response())->json([
@@ -444,10 +445,7 @@ class EquipmentController
                     'error' => "Image #{$imageId} non trouvée"
                 ], 404);
             }
-            dump($image);
-            dump($id);
-            dump($image->getEquipmentId());
-            dump(get_class($image));die;
+
 
             // ✅ Vérifier que l'image appartient à l'équipement
             $imageEquipmentId = $image->getEquipmentId();

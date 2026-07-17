@@ -5,7 +5,7 @@ use App\Attribute\Table;
 use App\Attribute\Column;
 use App\Attribute\Id;
 use App\Attribute\Relation;
-
+#[Entity]
 #[Table('equipment')]
 class Equipment
 {
@@ -14,6 +14,8 @@ class Equipment
     private ?int $id = null;
     #[Column('name')]
     private string $name;
+    #[Relation(Category::class)]
+    #[Column('category_id')]
     private Category $category;
     #[Column('daily_rate')]
     private float $dailyRate;
