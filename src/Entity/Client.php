@@ -1,106 +1,119 @@
 <?php
 namespace App\Entity;
 
-use App\Core\Validator\Constraints as Assert;
+use App\Attribute\Table;
+use App\Attribute\Column;
+use App\Attribute\Id;
 
+#[Table('clients')]
 class Client
 {
-    // Asymétrique visibility pour l'ID
-    public private(set) ?int $id = null;
+    #[Id]
+    #[Column('id')]
+    private ?int $id = null;
 
-    public private(set) \DateTimeImmutable $createdAt;
-    public private(set) \DateTimeImmutable $updatedAt;
+    #[Column('first_name')]
+    private string $firstName = '';
 
-    // Hook avec validation email
+    #[Column('last_name')]
+    private string $lastName = '';
 
-    public string $email {
-        get => $this->email;
-        set (string $value) {
-            $value = strtolower(trim($value));
-            if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
-                throw new \InvalidArgumentException('Email invalide');
-            }
-            $this->email = $value;
-        }
-    }
+    #[Column('email')]
+    private string $email = '';
 
-    // Hook avec transformation pour les noms
+    #[Column('phone')]
+    private ?string $phone = null;
 
-    public string $firstName {
-        get => $this->firstName;
-        set (string $value) {
-            $value = trim($value);
-            if (empty($value)) {
-                throw new \InvalidArgumentException('Le prénom ne peut pas être vide');
-            }
-            // Capitalisation
-            $this->firstName = ucfirst(strtolower($value));
-        }
-    }
+    #[Column('company')]
+    private ?string $company = null;
 
+    #[Column('address')]
+    private ?string $address = null;
 
-    public string $lastName {
-        get => $this->lastName;
-        set (string $value) {
-            $value = trim($value);
-            if (empty($value)) {
-                throw new \InvalidArgumentException('Le nom ne peut pas être vide');
-            }
-            // Mettre en majuscules
-            $this->lastName = strtoupper($value);
-        }
-    }
+    #[Column('city')]
+    private ?string $city = null;
 
-    // Hook avec formatage du téléphone
+    #[Column('postal_code')]
+    private ?string $postalCode = null;
 
-    public ?string $phone {
-        get => $this->phone;
-        set (?string $value) {
-            if ($value === null || $value === '') {
-                $this->phone = null;
-                return;
-            }
-            // Supprimer tous les caractères non numériques
-            $cleaned = preg_replace('/[^0-9]/', '', $value);
+    #[Column('created_at')]
+    private ?\DateTimeImmutable $createdAt = null;
 
-            // Format français : 0X XX XX XX XX
-            if (strlen($cleaned) === 10) {
-                $this->phone = substr($cleaned, 0, 2) . ' ' .
-                    substr($cleaned, 2, 2) . ' ' .
-                    substr($cleaned, 4, 2) . ' ' .
-                    substr($cleaned, 6, 2) . ' ' .
-                    substr($cleaned, 8, 2);
-            } else {
-                $this->phone = $value;
-            }
-        }
-    }
-
-    // Propriété calculée avec hook (PHP 8.4)
-    public string $fullName {
-        get => $this->firstName . ' ' . $this->lastName;
-    }
+    #[Column('updated_at')]
+    private ?\DateTimeImmutable $updatedAt = null;
 
     public function __construct(
         string $firstName,
         string $lastName,
         string $email,
         ?string $phone = null,
-        private ?string $company = null,
-        private ?string $address = null,
-        private ?string $city = null,
-        private ?string $postalCode = null,
+        ?string $company = null,
+        ?string $address = null,
+        ?string $city = null,
+        ?string $postalCode = null,
     ) {
-        // Utilisation des hooks via les setters
         $this->firstName = $firstName;
         $this->lastName = $lastName;
         $this->email = $email;
         $this->phone = $phone;
+
+        $this->company = $company;
+        $this->address = $address;
+        $this->city = $city;
+        $this->postalCode = $postalCode;
+
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
 
     // Getters/Setters simples
+
+    public function setEmail(string $email): self
+    {
+        $email = strtolower(trim($email));
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('Email invalide');
+        }
+
+        $this->email = $email;
+        return $this;
+    }
+
+    public function setFirstName(string $firstName): self
+    {
+        $firstName = trim($firstName);
+
+        if ($firstName === '') {
+            throw new \InvalidArgumentException('Le prénom ne peut pas être vide');
+        }
+
+        $this->firstName = ucfirst(strtolower($firstName));
+
+        return $this;
+    }
+    public function setPhone(?string $phone): self
+    {
+        if ($phone === null || $phone === '') {
+            $this->phone = null;
+            return $this;
+        }
+
+        $cleaned = preg_replace('/[^0-9]/', '', $phone);
+
+        if (strlen($cleaned) === 10) {
+            $phone =
+                substr($cleaned, 0, 2) . ' ' .
+                substr($cleaned, 2, 2) . ' ' .
+                substr($cleaned, 4, 2) . ' ' .
+                substr($cleaned, 6, 2) . ' ' .
+                substr($cleaned, 8, 2);
+        }
+
+        $this->phone = $phone;
+
+        return $this;
+    }
     public function getId(): ?int { return $this->id; }
 
     public function setId(int $id): self

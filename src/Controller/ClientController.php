@@ -117,6 +117,8 @@ class ClientController
     {
         $data = $request->toArray();
 
+
+
         try {
             // Validation
             $errors = $this->validateClientData($data);
@@ -145,6 +147,8 @@ class ClientController
                 $data['city'] ?? null,
                 $data['postal_code'] ?? null
             );
+
+
 
             $this->repository->save($client);
 
