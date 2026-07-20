@@ -3,7 +3,6 @@ namespace App\Repository;
 
 use App\Entity\Equipment;
 use App\Entity\Category;
-use App\Entity\Enum\EquipmentCategory;
 use App\Core\Repository\AbstractRepository;
 use App\Core\Repository\Criteria\Criteria;
 
@@ -30,10 +29,22 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
     /**
      * Trouve les équipements par catégorie
      */
-    public function findByCategory(EquipmentCategory $category): array
+    /**
+     * Trouve les équipements par catégorie
+     */
+    public function findByCategory(Category $category): array
     {
-        $sql = "SELECT * FROM {$this->tableName} WHERE category = :category ORDER BY name";
-        $results = $this->db->query($sql, ['category' => $category->value]);
+        $sql = "
+        SELECT e.*
+        FROM {$this->tableName} e
+        WHERE e.category_id = :category_id
+        ORDER BY e.name
+    ";
+
+        $results = $this->db->query($sql, [
+            'category_id' => $category->getId()
+        ]);
+
         return $this->hydrateMultiple($results);
     }
 
@@ -69,47 +80,81 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
 
     public function count(array $criteria = []): int
     {
-        $sql = "SELECT COUNT(*) as total FROM {$this->tableName}";
+        $sql = "
+        SELECT COUNT(*) as total
+        FROM {$this->tableName} e
+        LEFT JOIN categories c ON c.id = e.category_id
+    ";
+
         $params = [];
         $conditions = [];
 
-        // ✅ Gérer la recherche textuelle
+
         if (!empty($criteria['search'])) {
-            $conditions[] = "(name LIKE ? OR category LIKE ?)";
+
+            $conditions[] = "
+            (
+                e.name LIKE ?
+                OR c.name LIKE ?
+            )
+        ";
+
             $search = "%{$criteria['search']}%";
+
             $params[] = $search;
             $params[] = $search;
         }
 
-        // ✅ Catégorie
+
         if (!empty($criteria['category'])) {
-            $conditions[] = "category = ?";
+
+            $conditions[] = "e.category_id = ?";
+
             $params[] = $criteria['category'];
         }
 
-        // ✅ Disponibilité
+
         if (isset($criteria['available']) && $criteria['available'] !== null) {
-            $conditions[] = "available = ?";
+
+            $conditions[] = "e.available = ?";
+
             $params[] = $criteria['available'] ? 1 : 0;
         }
 
-        // ✅ Prix minimum
-        if (isset($criteria['min_rate']) && $criteria['min_rate'] !== null && $criteria['min_rate'] !== '') {
-            $conditions[] = "daily_rate >= ?";
+
+        if (
+            isset($criteria['min_rate']) &&
+            $criteria['min_rate'] !== null &&
+            $criteria['min_rate'] !== ''
+        ) {
+
+            $conditions[] = "e.daily_rate >= ?";
+
             $params[] = (float) $criteria['min_rate'];
         }
 
-        // ✅ Prix maximum
-        if (isset($criteria['max_rate']) && $criteria['max_rate'] !== null && $criteria['max_rate'] !== '') {
-            $conditions[] = "daily_rate <= ?";
+
+        if (
+            isset($criteria['max_rate']) &&
+            $criteria['max_rate'] !== null &&
+            $criteria['max_rate'] !== ''
+        ) {
+
+            $conditions[] = "e.daily_rate <= ?";
+
             $params[] = (float) $criteria['max_rate'];
         }
 
+
         if (!empty($conditions)) {
+
             $sql .= " WHERE " . implode(' AND ', $conditions);
+
         }
 
+
         $result = $this->db->query($sql, $params);
+
         return (int) ($result[0]['total'] ?? 0);
     }
 
@@ -145,13 +190,17 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
      */
     public function search(array $criteria, ?Criteria $pagination = null): array
     {
-        $sql = "SELECT * FROM {$this->tableName}";
+        $sql = "
+            SELECT e.*
+            FROM {$this->tableName} e
+            LEFT JOIN categories c ON c.id = e.category_id
+        ";
         $params = [];
         $conditions = [];
 
         // ✅ Gérer la recherche textuelle
         if (!empty($criteria['search'])) {
-            $conditions[] = "(name LIKE ? OR category LIKE ?)";
+            $conditions[] = "(e.name LIKE ? OR c.name LIKE ?)";
             $search = "%{$criteria['search']}%";
             $params[] = $search;
             $params[] = $search;
@@ -159,7 +208,7 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
 
         // ✅ Catégorie
         if (!empty($criteria['category'])) {
-            $conditions[] = "category = ?";
+            $conditions[] = "e.category_id = ?";
             $params[] = $criteria['category'];
         }
 
@@ -213,15 +262,18 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
      */
     public function getStatistics(): array
     {
-        $sql = "SELECT 
-                    COUNT(*) as total,
-                    SUM(available = 1) as available,
-                    SUM(available = 0) as rented,
-                    COUNT(DISTINCT category) as categories,
-                    AVG(daily_rate) as avg_daily_rate
-                FROM {$this->tableName}";
+        $sql = "
+        SELECT 
+            COUNT(*) as total,
+            SUM(available = 1) as available,
+            SUM(available = 0) as rented,
+            COUNT(DISTINCT category_id) as categories,
+            AVG(daily_rate) as avg_daily_rate
+        FROM {$this->tableName}
+    ";
 
         $result = $this->db->query($sql);
+
         return $result[0] ?? [
             'total' => 0,
             'available' => 0,
@@ -260,10 +312,14 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
      */
     public function countByCategory(): array
     {
-        $sql = "SELECT category, COUNT(*) as count 
-                FROM {$this->tableName} 
-                GROUP BY category 
-                ORDER BY count DESC";
+        $sql = "
+        SELECT 
+            category_id,
+            COUNT(*) as count
+        FROM {$this->tableName}
+        GROUP BY category_id
+        ORDER BY count DESC
+    ";
 
         return $this->db->query($sql);
     }
@@ -271,10 +327,6 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
     protected function extractData(object $entity): array
     {
         $data = parent::extractData($entity);
-
-        if (isset($data['category']) && $data['category'] instanceof \App\Entity\Category) {
-            $data['category'] = $data['category']->getSlug();
-        }
 
         if (isset($data['last_maintenance']) && $data['last_maintenance'] instanceof \DateTimeImmutable) {
             $data['last_maintenance'] = $data['last_maintenance']->format('Y-m-d H:i:s');
@@ -291,105 +343,64 @@ class EquipmentRepository extends AbstractRepository implements EquipmentReposit
 
         $equipment = $entity;
 
-        $category = $equipment->getCategory();
-        $categorySlug = $category ? $category->getSlug() : null;
+
         $id = $equipment->getId();
 
         if ($id) {
-            $sql = "UPDATE {$this->tableName} SET 
-                        name = :name,
-                        category = :category,
-                        serial_number = :serial_number,
-                        daily_rate = :daily_rate,
-                        available = :available,
-                        last_maintenance = :last_maintenance
-                    WHERE id = :id";
+            $categoryId = $equipment->getCategory()?->getId();
+            $sql = "UPDATE {$this->tableName}
+        SET
+            name = :name,
+            category_id = :category_id,
+            serial_number = :serial_number,
+            daily_rate = :daily_rate,
+            available = :available,
+            last_maintenance = :last_maintenance
+        WHERE id = :id";
 
             $this->db->execute($sql, [
-                'id' => $id,
+                'id' => $equipment->getId(),
                 'name' => $equipment->getName(),
-                'category' => $categorySlug,
+                'category_id' => $categoryId,
                 'serial_number' => $equipment->getSerialNumber(),
                 'daily_rate' => $equipment->getDailyRate(),
                 'available' => $equipment->isAvailable() ? 1 : 0,
                 'last_maintenance' => $equipment->getLastMaintenance()?->format('Y-m-d H:i:s'),
             ]);
         } else {
-            // ✅ Insert sans les champs image
-            $sql = "INSERT INTO {$this->tableName} 
-                        (name, category, serial_number, daily_rate, available, last_maintenance) 
-                    VALUES 
-                        (:name, :category, :serial_number, :daily_rate, :available, :last_maintenance)";
+            $categoryId = $equipment->getCategory()?->getId();
 
-            $this->db->execute($sql, [
-                'name' => $equipment->getName(),
-                'category' => $categorySlug,
-                'serial_number' => $equipment->getSerialNumber(),
-                'daily_rate' => $equipment->getDailyRate(),
-                'available' => $equipment->isAvailable() ? 1 : 0,
-                'last_maintenance' => $equipment->getLastMaintenance()?->format('Y-m-d H:i:s'),
-            ]);
+            $sql = "INSERT INTO {$this->tableName}
+        (
+            name,
+            category_id,
+            serial_number,
+            daily_rate,
+            available,
+            last_maintenance
+        )
+        VALUES
+        (
+            :name,
+            :category_id,
+            :serial_number,
+            :daily_rate,
+            :available,
+            :last_maintenance
+        )";
 
-            $lastId = (int) $this->db->lastInsertId();
-            if ($lastId) {
-                $reflection = new \ReflectionClass($equipment);
-                if ($reflection->hasProperty('id')) {
-                    $property = $reflection->getProperty('id');
-                    $property->setValue($equipment, $lastId);
-                }
-            }
+        $this->db->execute($sql, [
+            'name' => $equipment->getName(),
+            'category_id' => $categoryId,
+            'serial_number' => $equipment->getSerialNumber(),
+            'daily_rate' => $equipment->getDailyRate(),
+            'available' => $equipment->isAvailable() ? 1 : 0,
+            'last_maintenance' => $equipment->getLastMaintenance()?->format('Y-m-d H:i:s'),
+        ]);
         }
     }
 
-    /**
-     * ✅ Surcharge de hydrate pour gérer la catégorie
-     */
-    protected function hydrate(array $data): object
-    {
-        // Créer l'entité sans constructeur
-        $reflection = new \ReflectionClass($this->entityClass);
-        $entity = $reflection->newInstanceWithoutConstructor();
 
-        foreach ($data as $field => $value) {
-            $propertyName = $this->mapFieldToProperty($field);
-            if (!$propertyName || !$reflection->hasProperty($propertyName)) {
-                continue;
-            }
-
-            $property = $reflection->getProperty($propertyName);
-            $type = $property->getType();
-
-            if ($value === null) {
-                $property->setValue($entity, null);
-                continue;
-            }
-
-            // ✅ Gérer spécifiquement la catégorie
-            if ($propertyName === 'category') {
-                // Récupérer l'objet Category à partir du slug
-                $category = $this->categoryRepository->findBySlug($value);
-                if ($category) {
-                    $property->setValue($entity, $category);
-                }
-                continue;
-            }
-
-            // ✅ Gérer les autres types
-            if ($type && !$type->isBuiltin()) {
-                $typeName = $type->getName();
-
-                if (enum_exists($typeName)) {
-                    $value = $typeName::tryFrom($value);
-                } elseif ($typeName === \DateTimeImmutable::class) {
-                    $value = new \DateTimeImmutable($value);
-                }
-            }
-
-            $property->setValue($entity, $value);
-        }
-
-        return $entity;
-    }
 
 
 

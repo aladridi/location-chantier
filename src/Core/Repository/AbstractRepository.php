@@ -203,50 +203,78 @@ abstract class AbstractRepository implements RepositoryInterface
         $entity = $reflection->newInstanceWithoutConstructor();
 
         foreach ($data as $field => $value) {
-            $propertyName = $this->mapFieldToProperty($field);
-            if (!$propertyName || !$reflection->hasProperty($propertyName)) {
+
+            // Trouver la propriété liée à la colonne SQL
+            $property = $this->findPropertyByColumn($reflection, $field);
+
+            if (!$property) {
                 continue;
             }
 
-            $property = $reflection->getProperty($propertyName);
-            $type = $property->getType();
-
-            // ✅ Si la valeur est null, laisser null
+            // Gérer les valeurs nulles
             if ($value === null) {
                 $property->setValue($entity, null);
                 continue;
             }
 
-            // ✅ Gérer les types non-basiques
-            if ($type && !$type->isBuiltin()) {
+
+            /*
+             * Gestion des relations
+             * Exemple :
+             * equipment_id => Equipment
+             */
+            $relationAttributes = $property->getAttributes(\App\Attribute\Relation::class);
+
+            if (!empty($relationAttributes)) {
+
+                $relation = $relationAttributes[0]->newInstance();
+
+                $repository = $this->getRepository($relation->targetEntity);
+
+                $relatedEntity = $repository->find((int) $value);
+
+                $property->setValue($entity, $relatedEntity);
+
+                continue;
+            }
+
+
+            /*
+             * Gestion des types PHP natifs
+             */
+            $type = $property->getType();
+
+            if ($type instanceof \ReflectionNamedType) {
+
                 $typeName = $type->getName();
 
-                // ✅ Si c'est un enum
+                // Enum PHP
                 if (enum_exists($typeName)) {
                     $value = $typeName::tryFrom($value);
                 }
-                // ✅ Si c'est une date
+
+                // DateTimeImmutable
                 elseif ($typeName === \DateTimeImmutable::class) {
                     $value = new \DateTimeImmutable($value);
                 }
-                // ✅ Si c'est une Category ou autre entité
-                elseif (class_exists($typeName)) {
-                    // Vérifier si la classe a une méthode findBySlug ou find
-                    if (method_exists($typeName, 'findBySlug')) {
-                        // Appeler la méthode statique si elle existe
-                        $value = $typeName::findBySlug($value);
-                    } elseif (method_exists($typeName, 'find')) {
-                        // Ou utiliser find si disponible
-                        $value = $typeName::find($value);
-                    } else {
-                        // Essayer de créer une instance via le constructeur
-                        // Mais pour Category, on a besoin d'un repository
-                        $value = $this->resolveEntity($typeName, $value);
-                    }
+
+                // Boolean SQL (0/1)
+                elseif ($typeName === 'bool') {
+                    $value = (bool) $value;
+                }
+
+                // Integer SQL
+                elseif ($typeName === 'int') {
+                    $value = (int) $value;
+                }
+
+                // Float SQL
+                elseif ($typeName === 'float') {
+                    $value = (float) $value;
                 }
             }
 
-            // ✅ Assigner la valeur
+
             $property->setValue($entity, $value);
         }
 
@@ -374,6 +402,30 @@ abstract class AbstractRepository implements RepositoryInterface
         return $property;
     }
 
+    protected function findPropertyByColumn(
+        \ReflectionClass $reflection,
+        string $column
+    ): ?\ReflectionProperty {
+
+        foreach ($reflection->getProperties() as $property) {
+
+            $attributes = $property->getAttributes(
+                \App\Attribute\Column::class
+            );
+
+            foreach ($attributes as $attribute) {
+
+                $columnAttribute = $attribute->newInstance();
+
+                if ($columnAttribute->name === $column) {
+                    return $property;
+                }
+            }
+        }
+
+        return null;
+    }
+
     protected function mapPropertyToField(string $property): string
     {
         return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $property));
@@ -393,5 +445,23 @@ abstract class AbstractRepository implements RepositoryInterface
 
         // Pour d'autres entités, retourner null
         return null;
+    }
+
+    protected function getRepository(string $entityClass): object
+    {
+        // Récupérer le nom court de l'entité
+        $reflection = new \ReflectionClass($entityClass);
+        $entityName = $reflection->getShortName();
+
+        // Construire le nom du repository
+        $repositoryClass = 'App\\Repository\\' . $entityName . 'Repository';
+
+        if (!class_exists($repositoryClass)) {
+            throw new \RuntimeException(
+                "Repository non trouvé pour l'entité : {$entityClass}"
+            );
+        }
+
+        return new $repositoryClass($this->db);
     }
 }

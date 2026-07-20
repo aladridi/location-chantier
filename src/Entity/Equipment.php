@@ -1,17 +1,31 @@
 <?php
 namespace App\Entity;
-
 use App\Entity\Category;
-
+use App\Attribute\Table;
+use App\Attribute\Column;
+use App\Attribute\Id;
+use App\Attribute\Relation;
+#[Entity]
+#[Table('equipment')]
 class Equipment
 {
+    #[Id]
+    #[Column('id')]
     private ?int $id = null;
+    #[Column('name')]
     private string $name;
+    #[Relation(Category::class)]
+    #[Column('category_id')]
     private Category $category;
+    #[Column('daily_rate')]
     private float $dailyRate;
+    #[Column('available')]
     private bool $available = true;
+    #[Column('last_maintenance')]
     private ?\DateTimeImmutable $lastMaintenance = null;
+    #[Column('serial_number')]
     private ?string $serialNumber = null;
+    #[Column('created_at')]
     private \DateTimeImmutable $createdAt;
 
     public function __construct(

@@ -110,16 +110,29 @@ class ImageService
     }
 
     /**
-     * Définit l'image principale
+     * ✅ Définit l'image principale (corrigé)
      */
     public function setMainImage(int $imageId, int $equipmentId): bool
     {
+        // ✅ Vérifier que l'image existe
         $image = $this->imageRepository->find($imageId);
-        if (!$image || $image->getEquipment()->getId() !== $equipmentId) {
-            return false;
+        if (!$image) {
+            throw new \RuntimeException("Image #{$imageId} non trouvée");
         }
 
+        // ✅ Vérifier que l'image appartient bien à l'équipement
+        $imageEquipment = $image->getEquipment();
+        if (!$imageEquipment) {
+            throw new \RuntimeException("L'image #{$imageId} n'est associée à aucun équipement");
+        }
+
+        if ($imageEquipment->getId() !== $equipmentId) {
+            throw new \RuntimeException("L'image #{$imageId} n'appartient pas à l'équipement #{$equipmentId}");
+        }
+
+        // ✅ Définir l'image comme principale
         $this->imageRepository->setMainImage($imageId, $equipmentId);
+
         return true;
     }
 

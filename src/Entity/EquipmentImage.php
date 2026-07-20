@@ -1,23 +1,55 @@
 <?php
 namespace App\Entity;
 
+use App\Attribute\Table;
+use App\Attribute\Column;
+use App\Attribute\Id;
+use App\Attribute\Relation;
+use App\Attribute\RelationType;
+
+#[Table('equipment_images')]
 class EquipmentImage
 {
+    #[Id]
+    #[Column('id')]
     private ?int $id = null;
+
+    #[Column('equipment_id')]
+    #[Relation(
+        targetEntity: Equipment::class,
+        type: RelationType::MANY_TO_ONE
+    )]
     private ?Equipment $equipment = null;
+
+    #[Column('filename')]
     private string $filename;
+    #[Column('original_name')]
     private string $originalName;
+    #[Column('path')]
     private string $path;
+    #[Column('size')]
     private int $size;
+    #[Column('mime_type')]
     private string $mimeType;
+    #[Column('width')]
     private ?int $width = null;
+    #[Column('height')]
     private ?int $height = null;
+    #[Column('alt_text')]
     private ?string $altText = null;
+    #[Column('title')]
     private ?string $title = null;
+    #[Column('is_main')]
     private bool $isMain = false;
+    #[Column('sort_order')]
     private int $sortOrder = 0;
+    #[Column('is_active')]
     private bool $isActive = true;
+    #[Column('created_at')]
     private \DateTimeImmutable $createdAt;
+
+
+    #[Column('updated_at')]
     private \DateTimeImmutable $updatedAt;
 
     public function __construct(
