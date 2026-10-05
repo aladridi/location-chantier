@@ -16,7 +16,6 @@
                 class="form-control"
                 placeholder="Rechercher un client..."
                 v-model="search"
-                @input="filterClients"
             >
           </div>
         </div>
@@ -77,6 +76,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
+            <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
             <p>Êtes-vous sûr de vouloir supprimer le client <strong>{{ itemToDelete?.full_name || itemToDelete?.first_name + ' ' + itemToDelete?.last_name }}</strong> ?</p>
             <p class="text-danger"><small>Cette action est irréversible.</small></p>
           </div>
@@ -95,6 +95,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import Modal from 'bootstrap/js/dist/modal'
 import { useClientStore } from '../stores/client'
 
 const clientStore = useClientStore()
@@ -103,7 +104,14 @@ const loading = computed(() => clientStore.loading)
 const error = computed(() => clientStore.error)
 
 const search = ref('')
-const filteredClients = ref([])
+const filteredClients = computed(() => {
+  const term = search.value.trim().toLowerCase()
+  if (!term) return clients.value
+  return clients.value.filter(client =>
+    [client.full_name, client.first_name, client.last_name, client.email, client.company]
+      .some(value => value?.toLowerCase().includes(term))
+  )
+})
 const itemToDelete = ref(null)
 const deleting = ref(false)
 const deleteModalRef = ref(null)
@@ -113,28 +121,17 @@ onMounted(async () => {
 })
 
 const loadClients = async () => {
-  await clientStore.fetchAll()
-  filterClients()
-}
-
-const filterClients = () => {
-  if (!search.value) {
-    filteredClients.value = clients.value
-    return
+  try {
+    await clientStore.fetchAll()
+  } catch {
+    // Le store affiche déjà le message de l'API.
   }
-
-  const term = search.value.toLowerCase()
-  filteredClients.value = clients.value.filter(client =>
-      client.first_name?.toLowerCase().includes(term) ||
-      client.last_name?.toLowerCase().includes(term) ||
-      client.email?.toLowerCase().includes(term) ||
-      client.company?.toLowerCase().includes(term)
-  )
 }
 
 const confirmDelete = (client) => {
+  clientStore.error = null
   itemToDelete.value = client
-  const modal = new window.bootstrap.Modal(deleteModalRef.value)
+  const modal = Modal.getOrCreateInstance(deleteModalRef.value)
   modal.show()
 }
 
@@ -144,14 +141,13 @@ const deleteClient = async () => {
   deleting.value = true
   try {
     await clientStore.delete(itemToDelete.value.id)
-    const modal = window.bootstrap.Modal.getInstance(deleteModalRef.value)
+    const modal = Modal.getInstance(deleteModalRef.value)
     modal.hide()
-    await loadClients()
+    itemToDelete.value = null
   } catch (error) {
     console.error('Erreur lors de la suppression:', error)
   } finally {
     deleting.value = false
-    itemToDelete.value = null
   }
 }
 </script>

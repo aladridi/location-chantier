@@ -12,7 +12,9 @@
 
     <div class="card">
       <div class="card-body">
-        <form @submit.prevent="saveClient">
+        <div v-if="errors.general" class="alert alert-danger" role="alert">{{ errors.general }}</div>
+        <div v-if="loadingClient" class="text-center py-3">Chargement du client...</div>
+        <form v-else-if="!loadFailed" @submit.prevent="saveClient">
           <div class="row g-3">
             <div class="col-md-6">
               <label for="first_name" class="form-label">Prénom *</label>
@@ -134,6 +136,8 @@ const clientStore = useClientStore()
 const isEdit = computed(() => !!route.params.id)
 const saving = ref(false)
 const errors = ref({})
+const loadingClient = ref(false)
+const loadFailed = ref(false)
 
 const form = ref({
   first_name: '',
@@ -147,21 +151,25 @@ const form = ref({
 })
 
 onMounted(async () => {
-  if (isEdit.value) {
-    await clientStore.fetchAll()
-    const item = clientStore.clients.find(c => c.id === parseInt(route.params.id))
-    if (item) {
-      form.value = {
-        first_name: item.first_name || '',
-        last_name: item.last_name || '',
-        email: item.email || '',
-        phone: item.phone || '',
-        company: item.company || '',
-        address: item.address || '',
-        city: item.city || '',
-        postal_code: item.postal_code || ''
-      }
+  if (!isEdit.value) return
+  loadingClient.value = true
+  try {
+    const item = await clientStore.fetchOne(Number(route.params.id))
+    form.value = {
+      first_name: item.first_name || '',
+      last_name: item.last_name || '',
+      email: item.email || '',
+      phone: item.phone || '',
+      company: item.company || '',
+      address: item.address || '',
+      city: item.city || '',
+      postal_code: item.postal_code || ''
     }
+  } catch (error) {
+    loadFailed.value = true
+    errors.value = { general: error.response?.data?.error || error.message }
+  } finally {
+    loadingClient.value = false
   }
 })
 
@@ -180,7 +188,7 @@ const saveClient = async () => {
     if (error.response?.data?.errors) {
       errors.value = error.response.data.errors
     } else {
-      errors.value = { general: error.message }
+      errors.value = { general: error.response?.data?.error || error.message }
     }
   } finally {
     saving.value = false

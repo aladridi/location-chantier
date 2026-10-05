@@ -52,10 +52,10 @@ class Client
         ?string $city = null,
         ?string $postalCode = null,
     ) {
-        $this->firstName = $firstName;
-        $this->lastName = $lastName;
-        $this->email = $email;
-        $this->phone = $phone;
+        $this->setFirstName($firstName);
+        $this->setLastName($lastName);
+        $this->setEmail($email);
+        $this->setPhone($phone);
 
         $this->company = $company;
         $this->address = $address;
@@ -64,6 +64,27 @@ class Client
 
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    // Le nom complet est calculé : aucune colonne full_name n'est nécessaire.
+    public function getFirstName(): string { return $this->firstName; }
+    public function getLastName(): string { return $this->lastName; }
+    public function getEmail(): string { return $this->email; }
+    public function getPhone(): ?string { return $this->phone; }
+    public function getFullName(): string
+    {
+        return trim($this->firstName . ' ' . $this->lastName);
+    }
+
+    public function setLastName(string $lastName): self
+    {
+        $lastName = trim($lastName);
+        if ($lastName === '') {
+            throw new \InvalidArgumentException('Le nom ne peut pas être vide');
+        }
+        $this->lastName = $lastName;
+        $this->updatedAt = new \DateTimeImmutable();
+        return $this;
     }
 
     // Getters/Setters simples
@@ -77,6 +98,7 @@ class Client
         }
 
         $this->email = $email;
+        $this->updatedAt = new \DateTimeImmutable();
         return $this;
     }
 
@@ -88,14 +110,16 @@ class Client
             throw new \InvalidArgumentException('Le prénom ne peut pas être vide');
         }
 
-        $this->firstName = ucfirst(strtolower($firstName));
+        $this->firstName = $firstName;
+        $this->updatedAt = new \DateTimeImmutable();
 
         return $this;
     }
     public function setPhone(?string $phone): self
     {
-        if ($phone === null || $phone === '') {
+        if ($phone === null || trim($phone) === '') {
             $this->phone = null;
+            $this->updatedAt = new \DateTimeImmutable();
             return $this;
         }
 
@@ -110,7 +134,8 @@ class Client
                 substr($cleaned, 8, 2);
         }
 
-        $this->phone = $phone;
+        $this->phone = trim($phone);
+        $this->updatedAt = new \DateTimeImmutable();
 
         return $this;
     }
@@ -157,8 +182,8 @@ class Client
         return $this;
     }
 
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-    public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+    public function getCreatedAt(): ?\DateTimeImmutable { return $this->createdAt; }
+    public function getUpdatedAt(): ?\DateTimeImmutable { return $this->updatedAt; }
 
     // Méthode pour obtenir l'adresse complète
     public function getFullAddress(): ?string
@@ -186,9 +211,9 @@ class Client
     public function getDisplayName(): string
     {
         if ($this->isCompany()) {
-            return $this->company . ' (' . $this->fullName . ')';
+            return $this->company . ' (' . $this->getFullName() . ')';
         }
-        return $this->fullName;
+        return $this->getFullName();
     }
 
     // Représentation
@@ -204,7 +229,7 @@ class Client
             'id' => $this->id,
             'first_name' => $this->firstName,
             'last_name' => $this->lastName,
-            'full_name' => $this->fullName,
+            'full_name' => $this->getFullName(),
             'email' => $this->email,
             'phone' => $this->phone,
             'company' => $this->company,
@@ -213,8 +238,8 @@ class Client
             'postal_code' => $this->postalCode,
             'full_address' => $this->getFullAddress(),
             'is_company' => $this->isCompany(),
-            'created_at' => $this->createdAt->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updatedAt->format('Y-m-d H:i:s'),
+            'created_at' => $this->createdAt?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updatedAt?->format('Y-m-d H:i:s'),
         ];
     }
 }

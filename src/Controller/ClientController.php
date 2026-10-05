@@ -45,30 +45,27 @@ class ClientController
                 $filters['has_company'] = $hasCompany === 'true';
             }
 
+            $limit = max(1, min(100, (int) $request->get('limit', 20)));
+            $offset = max(0, (int) $request->get('offset', 0));
+
             // Pagination
             $pagination = Criteria::create()
                 ->orderBy('last_name', 'ASC')
                 ->orderBy('first_name', 'ASC')
-                ->limit((int) $request->get('limit', 20))
-                ->offset((int) $request->get('offset', 0));
+                ->orderBy('id', 'ASC')
+                ->limit($limit)
+                ->offset($offset);
 
-            // ✅ Si un search est présent, utiliser searchByName
-            if (!empty($search)) {
-                $clients = $this->repository->searchByName($search, (int) $request->get('limit', 20));
-                $total = count($clients);
-            } else {
-                // Sinon, utiliser la recherche avancée avec les filtres
-                $clients = $this->repository->search($filters, $pagination);
-                $total = $this->repository->count($filters);
-            }
+            $clients = $this->repository->search($filters, $pagination);
+            $total = $this->repository->count($filters);
 
             return (new Response())->json([
                 'success' => true,
                 'data' => array_map(fn($c) => $c->toArray(), $clients),
                 'pagination' => [
                     'total' => $total,
-                    'limit' => (int) $request->get('limit', 20),
-                    'offset' => (int) $request->get('offset', 0),
+                    'limit' => $limit,
+                    'offset' => $offset,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -99,7 +96,7 @@ class ClientController
                 'success' => true,
                 'data' => [
                     'client' => $client->toArray(),
-                    'rentals' => array_map(fn($r) => $r->toArray(), $rentals),
+                    'rentals' => $rentals,
                     'rentals_count' => count($rentals)
                 ]
             ]);
@@ -115,11 +112,8 @@ class ClientController
      */
     public function create(Request $request): Response
     {
-        $data = $request->toArray();
-
-
-
         try {
+            $data = $this->normalizeClientData($request->toArray());
             // Validation
             $errors = $this->validateClientData($data);
             if (!empty($errors)) {
@@ -147,8 +141,6 @@ class ClientController
                 $data['city'] ?? null,
                 $data['postal_code'] ?? null
             );
-
-
 
             $this->repository->save($client);
 
@@ -179,7 +171,7 @@ class ClientController
                 ], 404);
             }
 
-            $data = $request->toArray();
+            $data = $this->normalizeClientData($request->toArray());
 
             // Validation
             $errors = $this->validateClientData($data, true);
@@ -199,27 +191,27 @@ class ClientController
 
             // Mettre à jour les champs
             if (isset($data['first_name'])) {
-                $client->firstName = $data['first_name'];
+                $client->setFirstName($data['first_name']);
             }
             if (isset($data['last_name'])) {
-                $client->lastName = $data['last_name'];
+                $client->setLastName($data['last_name']);
             }
             if (isset($data['email'])) {
-                $client->email = $data['email'];
+                $client->setEmail($data['email']);
             }
-            if (isset($data['phone'])) {
-                $client->phone = $data['phone'];
+            if (array_key_exists('phone', $data)) {
+                $client->setPhone($data['phone']);
             }
-            if (isset($data['company'])) {
+            if (array_key_exists('company', $data)) {
                 $client->setCompany($data['company']);
             }
-            if (isset($data['address'])) {
+            if (array_key_exists('address', $data)) {
                 $client->setAddress($data['address']);
             }
-            if (isset($data['city'])) {
+            if (array_key_exists('city', $data)) {
                 $client->setCity($data['city']);
             }
-            if (isset($data['postal_code'])) {
+            if (array_key_exists('postal_code', $data)) {
                 $client->setPostalCode($data['postal_code']);
             }
 
@@ -317,7 +309,7 @@ class ClientController
     {
         try {
             $stats = $this->repository->getStatistics();
-            $topClients = $this->repository->findTopClients(5);
+            $topClients = $this->repository->getTopClientStatistics(5);
 
             return (new Response())->json([
                 'success' => true,
@@ -342,43 +334,45 @@ class ClientController
     /**
      * Validation des données client
      */
-    private function validateClientData(array $data, bool $isUpdate = false): array
+    private function normalizeClientData(array $data): array
     {
-        $errors = [];
-
-        if (!$isUpdate || isset($data['first_name'])) {
-            if (empty($data['first_name'] ?? '')) {
-                $errors['first_name'] = 'Le prénom est obligatoire';
-            } elseif (strlen($data['first_name']) < 2) {
-                $errors['first_name'] = 'Le prénom doit faire au moins 2 caractères';
-            }
-        }
-
-        if (!$isUpdate || isset($data['last_name'])) {
-            if (empty($data['last_name'] ?? '')) {
-                $errors['last_name'] = 'Le nom est obligatoire';
-            } elseif (strlen($data['last_name']) < 2) {
-                $errors['last_name'] = 'Le nom doit faire au moins 2 caractères';
-            }
-        }
-
-        if (!$isUpdate || isset($data['email'])) {
-            if (empty($data['email'] ?? '')) {
-                $errors['email'] = 'L\'email est obligatoire';
-            } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-                $errors['email'] = 'Email invalide';
-            }
-        }
-
-        if (!$isUpdate || isset($data['phone'])) {
-            if (!empty($data['phone'] ?? '')) {
-                $cleaned = preg_replace('/[^0-9]/', '', $data['phone']);
-                if (strlen($cleaned) < 10) {
-                    $errors['phone'] = 'Le numéro de téléphone doit faire au moins 10 chiffres';
+        foreach (['first_name', 'last_name', 'email', 'phone', 'company', 'address', 'city', 'postal_code'] as $field) {
+            if (isset($data[$field]) && is_string($data[$field])) {
+                $data[$field] = trim($data[$field]);
+                if ($field === 'email') {
+                    $data[$field] = strtolower($data[$field]);
                 }
             }
         }
+        return $data;
+    }
 
+    private function validateClientData(array $data, bool $isUpdate = false): array
+    {
+        $errors = [];
+        foreach (['first_name' => 'Le prénom', 'last_name' => 'Le nom', 'email' => "L'email"] as $field => $label) {
+            if ($isUpdate && !array_key_exists($field, $data)) {
+                continue;
+            }
+            $value = $data[$field] ?? null;
+            if (!is_string($value) || $value === '') {
+                $errors[$field] = $label . ' est obligatoire';
+            } elseif ($field === 'email' && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                $errors[$field] = 'Email invalide';
+            } elseif ($field !== 'email' && (function_exists('mb_strlen') ? mb_strlen($value) : preg_match_all('/./us', $value)) < 2) {
+                $errors[$field] = $label . ' doit faire au moins 2 caractères';
+            }
+        }
+        foreach (['phone', 'company', 'address', 'city', 'postal_code'] as $field) {
+            if (array_key_exists($field, $data) && $data[$field] !== null && !is_string($data[$field])) {
+                $errors[$field] = 'Ce champ doit être une chaîne de caractères ou null';
+            }
+        }
+        if (isset($data['phone']) && is_string($data['phone']) && $data['phone'] !== '') {
+            if (strlen(preg_replace('/[^0-9]/', '', $data['phone'])) < 10) {
+                $errors['phone'] = 'Le numéro de téléphone doit faire au moins 10 chiffres';
+            }
+        }
         return $errors;
     }
 }
