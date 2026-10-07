@@ -92,12 +92,6 @@ abstract class AbstractPricingStrategy implements PricingStrategyInterface
         return $this->baseMultiplier;
     }
 
-    public function getType(): string
-    {
-        return strtolower((new \ReflectionClass($this))->getShortName());
-    }
-
-
     public function getPromotions(): array
     {
         return $this->promotions;

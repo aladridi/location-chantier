@@ -31,6 +31,11 @@ class VolumeDiscountPricing extends AbstractPricingStrategy
         return 'Tarif volume (remise progressive)';
     }
 
+    public function getType(): string
+    {
+        return 'volume';
+    }
+
     public function getDescription(): string
     {
         return 'Tarif avec remise progressive selon la durée de location. Plus vous louez longtemps, plus vous économisez !';

@@ -99,4 +99,34 @@ class Container implements ContainerInterface
 
         return $reflection->newInstanceArgs($dependencies);
     }
+
+    public function getImplementations(
+        string $interface,
+        string $directory,
+        string $namespace
+    ): array {
+        $implementations = [];
+
+        foreach (glob($directory . '/*.php') as $file) {
+            $className = $namespace . '\\' . basename($file, '.php');
+
+            if (!class_exists($className)) {
+                continue;
+            }
+
+            if (!is_subclass_of($className, $interface)) {
+                continue;
+            }
+
+            $reflection = new \ReflectionClass($className);
+
+            if ($reflection->isAbstract()) {
+                continue;
+            }
+
+            $implementations[] = $className;
+        }
+
+        return $implementations;
+    }
 }

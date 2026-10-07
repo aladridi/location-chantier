@@ -32,6 +32,11 @@ class MonthlyPricing extends AbstractPricingStrategy
         return 'Tarif mensuel';
     }
 
+    public function getType(): string
+    {
+        return 'monthly';
+    }
+
     public function getDescription(): string
     {
         return sprintf(

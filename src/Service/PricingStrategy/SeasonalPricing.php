@@ -27,6 +27,11 @@ class SeasonalPricing extends AbstractPricingStrategy
         return 'Tarif saisonnier';
     }
 
+    public function getType(): string
+    {
+        return 'seasonal';
+    }
+
     public function getDescription(): string
     {
         $season = $this->getCurrentSeason();

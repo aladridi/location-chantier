@@ -1,63 +1,82 @@
 <?php
+
 namespace App\Service\PricingStrategy\Collection;
 
+use App\Core\Container\Container;
+use App\Entity\Equipment;
 use App\Service\PricingStrategy\PricingStrategyInterface;
 
 class PricingStrategyCollection
 {
-    private array $strategies = [];
-
-    public function __construct(array $strategies)
-    {
-        $this->strategies = $strategies;
+    /**
+     * @param array<class-string<PricingStrategyInterface>> $strategyClasses
+     */
+    public function __construct(
+        private Container $container,
+        private array $strategyClasses
+    ) {
     }
 
+    /**
+     * @return PricingStrategyInterface[]
+     */
     public function getAll(): array
     {
-        return $this->strategies;
+        return array_map(
+            fn (string $class): PricingStrategyInterface =>
+            $this->container->get($class),
+            $this->strategyClasses
+        );
     }
 
     public function count(): int
     {
-        return count($this->strategies);
+        return count($this->strategyClasses);
     }
 
     public function find(string $type): ?PricingStrategyInterface
     {
-        foreach ($this->strategies as $strategy) {
+        foreach ($this->getAll() as $strategy) {
             if ($strategy->getType() === $type) {
                 return $strategy;
             }
         }
+
         return null;
     }
 
-    public function getBestPrice(Equipment $equipment, int $days): ?PricingStrategyInterface
-    {
+    /**
+     * @return PricingStrategyInterface[]
+     */
+    public function getApplicableStrategies(
+        Equipment $equipment,
+        int $days
+    ): array {
+        return array_values(
+            array_filter(
+                $this->getAll(),
+                fn (PricingStrategyInterface $strategy): bool =>
+                $strategy->isApplicable($equipment, $days)
+            )
+        );
+    }
+
+    public function getBestPrice(
+        Equipment $equipment,
+        int $days
+    ): ?PricingStrategyInterface {
         $bestStrategy = null;
         $bestPrice = PHP_FLOAT_MAX;
 
-        foreach ($this->strategies as $strategy) {
-            if ($strategy->isApplicable($equipment, $days)) {
-                $price = $strategy->calculatePrice($equipment, $days);
-                if ($price < $bestPrice) {
-                    $bestPrice = $price;
-                    $bestStrategy = $strategy;
-                }
+        foreach ($this->getApplicableStrategies($equipment, $days) as $strategy) {
+            $price = $strategy->calculatePrice($equipment, $days);
+
+            if ($price < $bestPrice) {
+                $bestPrice = $price;
+                $bestStrategy = $strategy;
             }
         }
 
         return $bestStrategy;
-    }
-
-    public function getApplicableStrategies(Equipment $equipment, int $days): array
-    {
-        $applicable = [];
-        foreach ($this->strategies as $strategy) {
-            if ($strategy->isApplicable($equipment, $days)) {
-                $applicable[] = $strategy;
-            }
-        }
-        return $applicable;
     }
 }

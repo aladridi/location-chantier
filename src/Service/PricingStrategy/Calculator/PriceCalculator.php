@@ -20,6 +20,7 @@ class PriceCalculator
 
     public function calculate(Equipment $equipment, int $days, ?string $strategyType = null): PriceBreakdown
     {
+
         $strategy = $this->selectStrategy($equipment, $days, $strategyType);
 
         if (!$strategy) {
@@ -38,6 +39,7 @@ class PriceCalculator
     private function selectStrategy(Equipment $equipment, int $days, ?string $strategyType = null): ?PricingStrategyInterface
     {
         // Si un type spécifique est demandé
+
         if ($strategyType) {
             foreach ($this->strategies as $strategy) {
                 if ($strategy->getType() === $strategyType && $strategy->isApplicable($equipment, $days)) {
@@ -89,14 +91,22 @@ class PriceCalculator
         return $comparison;
     }
 
-    public function getAvailableStrategies(Equipment $equipment, int $days): array
-    {
+    public function getAvailableStrategies(
+        Equipment $equipment,
+        int $days
+    ): array {
         $available = [];
+
         foreach ($this->strategies as $strategy) {
             if ($strategy->isApplicable($equipment, $days)) {
-                $available[] = $strategy;
+                $available[] = [
+                    'value' => $strategy->getType(),
+                    'label' => $strategy->getLabel(),
+                    'description' => $strategy->getDescription(),
+                ];
             }
         }
+
         return $available;
     }
 }

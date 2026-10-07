@@ -24,14 +24,8 @@ use App\Service\Auth\PasswordHasher;
 use App\Service\Auth\SessionManager;
 
 // Pricing Strategies
-use App\Service\PricingStrategy\DailyPricing;
-use App\Service\PricingStrategy\WeeklyPricing;
-use App\Service\PricingStrategy\MonthlyPricing;
-use App\Service\PricingStrategy\SeasonalPricing;
-use App\Service\PricingStrategy\VolumeDiscountPricing;
-use App\Service\PricingStrategy\PremiumPricing;
-use App\Service\PricingStrategy\Factory\PricingStrategyFactory;
 use App\Service\PricingStrategy\Calculator\PriceCalculator;
+use App\Service\PricingStrategy\PricingStrategyInterface;
 use App\Service\PricingStrategy\Collection\PricingStrategyCollection;
 
 // Observers
@@ -135,65 +129,35 @@ return function (Container $container) {
         );
     });
 
-    // ============================================
-    // 5. STRATÉGIES DE PRIX
-    // ============================================
-    $container->set(DailyPricing::class, function () {
-        return new DailyPricing();
-    });
-
-    $container->set(WeeklyPricing::class, function () {
-        return new WeeklyPricing();
-    });
-
-    $container->set(MonthlyPricing::class, function () {
-        return new MonthlyPricing();
-    });
-
-    $container->set(SeasonalPricing::class, function () {
-        return new SeasonalPricing();
-    });
-
-    $container->set(VolumeDiscountPricing::class, function () {
-        return new VolumeDiscountPricing();
-    });
-
-    $container->set(PremiumPricing::class, function () {
-        return new PremiumPricing();
-    });
 
     // ============================================
-    // 6. COLLECTION DES STRATÉGIES
+    // 5. COLLECTION DES STRATÉGIES
     // ============================================
     $container->set(PricingStrategyCollection::class, function ($c) {
-        $strategies = [
-            $c->get(DailyPricing::class),
-            $c->get(WeeklyPricing::class),
-            $c->get(MonthlyPricing::class),
-            $c->get(SeasonalPricing::class),
-            $c->get(VolumeDiscountPricing::class),
-            $c->get(PremiumPricing::class),
-        ];
 
-        $strategiesWithPromotions = [];
-        foreach ($strategies as $strategy) {
-            $type = str_replace('pricing', '', strtolower($strategy->getType()));
-            $strategiesWithPromotions[] = PricingStrategyFactory::createWithPromotions($type);
-        }
+        $strategyClasses = $c->getImplementations(
+            PricingStrategyInterface::class,
+            __DIR__ . '/../src/Service/PricingStrategy',
+            'App\Service\PricingStrategy'
+        );
 
-        return new PricingStrategyCollection($strategiesWithPromotions);
+        return new PricingStrategyCollection(
+            $c,
+            $strategyClasses
+        );
     });
 
     // ============================================
-    // 7. CALCULATEUR DE PRIX
+    // 6. CALCULATEUR DE PRIX
     // ============================================
     $container->set(PriceCalculator::class, function ($c) {
-        $collection = $c->get(PricingStrategyCollection::class);
-        return new PriceCalculator($collection->getAll());
+        return new PriceCalculator(
+            $c->get(PricingStrategyCollection::class)->getAll()
+        );
     });
 
     // ============================================
-    // 8. SERVICE PRINCIPAL
+    // 7. SERVICE PRINCIPAL
     // ============================================
     $container->set(RentalService::class, function ($c) {
         return new RentalService(
@@ -205,7 +169,7 @@ return function (Container $container) {
     });
 
     // ============================================
-    // 9. SERVICE D'IMAGES
+    // 8. SERVICE D'IMAGES
     // ============================================
 
     // ✅ Configuration de l'upload
@@ -231,7 +195,7 @@ return function (Container $container) {
     });
 
     // ============================================
-    // 10. OBSERVATEURS
+    // 9. OBSERVATEURS
     // ============================================
     $container->set(MaintenanceAlert::class, function () {
         return new MaintenanceAlert();
@@ -242,7 +206,7 @@ return function (Container $container) {
     });
 
     // ============================================
-    // 11. ENREGISTREMENT DES OBSERVATEURS
+    // 10. ENREGISTREMENT DES OBSERVATEURS
     // ============================================
     $eventDispatcher = $container->get(EventDispatcher::class);
 
@@ -267,7 +231,7 @@ return function (Container $container) {
     );
 
     // ============================================
-    // 12. DÉBOGAGE
+    // 11. DÉBOGAGE
     // ============================================
     if ($container->getParameter('app.debug')) {
         $eventDispatcher->addListener(

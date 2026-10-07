@@ -33,6 +33,11 @@ class PremiumPricing extends AbstractPricingStrategy
         return 'Tarif premium (matériel spécialisé)';
     }
 
+    public function getType(): string
+    {
+        return 'premium';
+    }
+
     public function getDescription(): string
     {
         return 'Tarif spécifique pour le matériel lourd et spécialisé nécessitant des compétences particulières.';

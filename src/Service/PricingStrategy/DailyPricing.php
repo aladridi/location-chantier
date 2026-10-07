@@ -22,6 +22,11 @@ class DailyPricing extends AbstractPricingStrategy
         return 'Tarif journalier';
     }
 
+    public function getType(): string
+    {
+        return 'daily';
+    }
+
     public function getDescription(): string
     {
         return 'Tarif standard au jour le jour. Idéal pour les locations courtes de 1 à 6 jours.';

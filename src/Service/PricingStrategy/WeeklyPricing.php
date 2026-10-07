@@ -1,7 +1,9 @@
 <?php
+
 namespace App\Service\PricingStrategy;
 
 use App\Entity\Equipment;
+use App\Service\PricingStrategy\Promotion\PercentagePromotion;
 
 class WeeklyPricing extends AbstractPricingStrategy
 {
@@ -9,9 +11,18 @@ class WeeklyPricing extends AbstractPricingStrategy
 
     public function __construct()
     {
-        $this->baseMultiplier = 0.85; // 15% de réduction
+        $this->baseMultiplier = 0.85;
         $this->minDays = 7;
         $this->maxDays = 13;
+
+        $this->addPromotion(
+            new PercentagePromotion(
+                'Promotion week-end',
+                'Réduction de 10% pour les locations incluant le week-end',
+                10,
+                minDays: 3
+            )
+        );
     }
 
     public function calculatePrice(Equipment $equipment, int $days): float
@@ -24,6 +35,11 @@ class WeeklyPricing extends AbstractPricingStrategy
     public function getLabel(): string
     {
         return 'Tarif hebdomadaire';
+    }
+
+    public function getType(): string
+    {
+        return 'weekly';
     }
 
     public function getDescription(): string
