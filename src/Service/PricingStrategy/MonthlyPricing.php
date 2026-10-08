@@ -2,6 +2,8 @@
 namespace App\Service\PricingStrategy;
 
 use App\Entity\Equipment;
+use App\Service\PricingStrategy\Promotion\FreeDayPromotion;
+use App\Service\PricingStrategy\Promotion\FixedDiscountPromotion;
 
 class MonthlyPricing extends AbstractPricingStrategy
 {
@@ -9,9 +11,32 @@ class MonthlyPricing extends AbstractPricingStrategy
 
     public function __construct()
     {
-        $this->baseMultiplier = 0.75; // 25% de réduction
+        $this->baseMultiplier = 0.75;
         $this->minDays = 14;
         $this->maxDays = 90;
+
+        $this->addPromotion(
+            new FreeDayPromotion(
+                'Offre 1 jour gratuit',
+                '1 jour offert pour 5 jours de location',
+                5,
+                1,
+                [
+                    'excavator',
+                    'loader'
+                ]
+            )
+        );
+
+        $this->addPromotion(
+            new FixedDiscountPromotion(
+                'Remise fidélité',
+                'Remise de 50€ pour les locations de plus de 20 jours',
+                50,
+                minDays: 20,
+                minPrice: 500
+            )
+        );
     }
 
     public function calculatePrice(Equipment $equipment, int $days): float

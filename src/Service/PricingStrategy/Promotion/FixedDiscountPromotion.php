@@ -2,7 +2,6 @@
 namespace App\Service\PricingStrategy\Promotion;
 
 use App\Entity\Equipment;
-use App\Service\PricingStrategy\PromotionInterface;
 
 class FixedDiscountPromotion implements PromotionInterface
 {

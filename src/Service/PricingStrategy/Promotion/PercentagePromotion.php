@@ -2,7 +2,6 @@
 namespace App\Service\PricingStrategy\Promotion;
 
 use App\Entity\Equipment;
-use App\Service\PricingStrategy\PromotionInterface;
 
 class PercentagePromotion implements PromotionInterface
 {
@@ -26,7 +25,11 @@ class PercentagePromotion implements PromotionInterface
         }
 
         if ($this->applicableCategories !== null) {
-            if (!in_array($equipment->getCategory()->value, $this->applicableCategories)) {
+            if (!in_array(
+                $equipment->getCategory()->getSlug(),
+                $this->applicableCategories,
+                true
+            )) {
                 return false;
             }
         }

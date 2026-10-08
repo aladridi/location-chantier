@@ -2,7 +2,7 @@
 namespace App\Service\PricingStrategy;
 
 use App\Entity\Equipment;
-
+use App\Service\PricingStrategy\Promotion\PercentagePromotion;
 class VolumeDiscountPricing extends AbstractPricingStrategy
 {
     private array $volumeTiers = [
@@ -17,6 +17,15 @@ class VolumeDiscountPricing extends AbstractPricingStrategy
     {
         $this->baseMultiplier = 1.0;
         $this->minDays = 1;
+
+        $this->addPromotion(
+            new PercentagePromotion(
+                'Super remise volume',
+                '5% de réduction supplémentaire pour les très longues durées',
+                5,
+                minDays: 14
+            )
+        );
     }
 
     public function calculatePrice(Equipment $equipment, int $days): float

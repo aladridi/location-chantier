@@ -1,5 +1,5 @@
 <?php
-namespace App\Service\PricingStrategy;
+namespace App\Service\PricingStrategy\Promotion;
 
 use App\Entity\Equipment;
 

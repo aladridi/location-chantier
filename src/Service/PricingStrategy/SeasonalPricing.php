@@ -2,7 +2,7 @@
 namespace App\Service\PricingStrategy;
 
 use App\Entity\Equipment;
-
+use App\Service\PricingStrategy\Promotion\PercentagePromotion;
 class SeasonalPricing extends AbstractPricingStrategy
 {
     private array $seasonalRates = [
@@ -14,6 +14,14 @@ class SeasonalPricing extends AbstractPricingStrategy
     public function __construct()
     {
         $this->baseMultiplier = 1.0;
+
+        $this->addPromotion(
+            new PercentagePromotion(
+                'Promotion basse saison',
+                'Réduction supplémentaire de 10% en basse saison',
+                10
+            )
+        );
     }
 
     public function calculatePrice(Equipment $equipment, int $days): float

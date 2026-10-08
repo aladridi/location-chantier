@@ -2,7 +2,6 @@
 namespace App\Service\PricingStrategy\Promotion;
 
 use App\Entity\Equipment;
-use App\Service\PricingStrategy\PromotionInterface;
 
 class FreeDayPromotion implements PromotionInterface
 {
@@ -26,20 +25,27 @@ class FreeDayPromotion implements PromotionInterface
         return $dailyRate * min($freeDays, $days);
     }
 
-    public function isApplicable(Equipment $equipment, int $days): bool
-    {
-        if ($days < $this->daysRequired) {
+
+public function isApplicable(Equipment $equipment, int $days): bool
+{
+    if ($days < $this->daysRequired) {
+        return false;
+    }
+
+    if ($this->applicableCategories !== null) {
+        if (!in_array(
+            $equipment->getCategory()->getSlug(),
+            $this->applicableCategories,
+            true
+        )) {
             return false;
         }
-
-        if ($this->applicableCategories !== null) {
-            if (!in_array($equipment->getCategory()->value, $this->applicableCategories)) {
-                return false;
-            }
-        }
-
-        return true;
     }
+
+    return true;
+}
+
+
 
     public function getLabel(): string
     {

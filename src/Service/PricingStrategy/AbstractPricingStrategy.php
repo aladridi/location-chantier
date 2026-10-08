@@ -3,6 +3,7 @@ namespace App\Service\PricingStrategy;
 
 use App\Entity\Equipment;
 use App\Service\PricingStrategy\Calculator\PriceBreakdown;
+use App\Service\PricingStrategy\Promotion\PromotionInterface;
 
 abstract class AbstractPricingStrategy implements PricingStrategyInterface
 {
@@ -30,11 +31,17 @@ abstract class AbstractPricingStrategy implements PricingStrategyInterface
         $breakdown->setDays($days);
 
         // Application du multiplicateur de la stratégie
-        $multiplier = $this->getMultiplier();
-        $breakdown->addAdjustment('strategie_multiplicateur', $multiplier, 'Multiplicateur ' . $this->getLabel());
+        $priceAfterStrategy = $this->calculatePrice($equipment, $days);
 
-        // Prix après stratégie
-        $priceAfterStrategy = $basePrice * $multiplier;
+        $multiplier = $basePrice > 0
+            ? $priceAfterStrategy / $basePrice
+            : 1.0;
+
+        $breakdown->addAdjustment(
+            'strategie_multiplicateur',
+            $multiplier,
+            'Multiplicateur effectif ' . $this->getLabel()
+        );
         $breakdown->setPriceAfterStrategy($priceAfterStrategy);
 
         // Application des promotions

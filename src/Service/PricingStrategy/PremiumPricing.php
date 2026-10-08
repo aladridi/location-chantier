@@ -2,7 +2,6 @@
 namespace App\Service\PricingStrategy;
 
 use App\Entity\Equipment;
-use App\Entity\Enum\EquipmentCategory;
 
 class PremiumPricing extends AbstractPricingStrategy
 {
@@ -50,17 +49,23 @@ class PremiumPricing extends AbstractPricingStrategy
 
     private function getPremiumMultiplier(Equipment $equipment): float
     {
-        // Supplément selon la catégorie
-        return match($equipment->getCategory()) {
-            EquipmentCategory::CRANE => 1.5,
-            EquipmentCategory::BULLDOZER => 1.3,
-            EquipmentCategory::EXCAVATOR => 1.2,
+        return match ($equipment->getCategory()->getSlug()) {
+            'crane' => 1.5,
+            'bulldozer' => 1.3,
+            'excavator' => 1.2,
             default => 1.0,
         };
     }
 
-    public function isApplicable(Equipment $equipment, int $days, ?array $context = []): bool
-    {
-        return in_array($equipment->getCategory()->value, $this->premiumCategories);
+    public function isApplicable(
+        Equipment $equipment,
+        int $days,
+        ?array $context = []
+    ): bool {
+        return in_array(
+            $equipment->getCategory()->getSlug(),
+            $this->premiumCategories,
+            true
+        );
     }
 }
