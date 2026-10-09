@@ -76,7 +76,7 @@ class ServicesConfigurationTest extends TestCase
 
         $reflection = new \ReflectionClass($calculator);
         $property = $reflection->getProperty('strategies');
-        $property->setAccessible(true);
+
 
         $strategies = $property->getValue($calculator);
 
@@ -91,7 +91,7 @@ class ServicesConfigurationTest extends TestCase
 
         $reflection = new \ReflectionClass($rentalService);
         $property = $reflection->getProperty('priceCalculator');
-        $property->setAccessible(true);
+
 
         $calculator = $property->getValue($rentalService);
 
@@ -196,7 +196,8 @@ class ServicesConfigurationTest extends TestCase
         try {
             $databaseConfig = $this->container->getParameter('database.config');
             $this->assertIsArray($databaseConfig);
-            $this->assertArrayHasKey('dsn', $databaseConfig);
+            $this->assertArrayHasKey('driver', $databaseConfig);
+            $this->assertArrayHasKey('database', $databaseConfig);
             $this->assertArrayHasKey('username', $databaseConfig);
             $this->assertArrayHasKey('password', $databaseConfig);
         } catch (\RuntimeException $e) {

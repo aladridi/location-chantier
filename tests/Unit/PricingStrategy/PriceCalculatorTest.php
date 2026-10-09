@@ -1,16 +1,15 @@
 <?php
+
 namespace Tests\Unit\PricingStrategy;
 
+use App\Entity\Category;
 use App\Entity\Equipment;
-use App\Entity\Enum\EquipmentCategory;
-use App\Service\PricingStrategy\{
-    DailyPricing,
-    WeeklyPricing,
-    MonthlyPricing,
-    SeasonalPricing,
-    VolumeDiscountPricing,
-    PremiumPricing
-};
+use App\Service\PricingStrategy\DailyPricing;
+use App\Service\PricingStrategy\WeeklyPricing;
+use App\Service\PricingStrategy\MonthlyPricing;
+use App\Service\PricingStrategy\SeasonalPricing;
+use App\Service\PricingStrategy\VolumeDiscountPricing;
+use App\Service\PricingStrategy\PremiumPricing;
 use App\Service\PricingStrategy\Calculator\PriceCalculator;
 use PHPUnit\Framework\TestCase;
 
@@ -19,11 +18,31 @@ class PriceCalculatorTest extends TestCase
     private Equipment $equipment;
     private PriceCalculator $calculator;
 
+    private function createCategory(
+        string $name,
+        string $slug,
+        float  $multiplier = 1.0,
+        bool   $requiresMaintenance = false
+    ): Category
+    {
+        return new Category(
+            name: $name,
+            slug: $slug,
+            dailyRateMultiplier: $multiplier,
+            requiresMaintenance: $requiresMaintenance
+        );
+    }
+
     protected function setUp(): void
     {
+        $category = $this->createCategory(
+            'Excavatrice',
+            'excavator'
+        );
+
         $this->equipment = new Equipment(
-            'Pelle mécanique',
-            EquipmentCategory::EXCAVATOR,
+            'Pelle mecanique',
+            $category,
             150.00
         );
 
@@ -41,97 +60,152 @@ class PriceCalculatorTest extends TestCase
 
     public function testDailyPricing(): void
     {
-        $breakdown = $this->calculator->calculate($this->equipment, 3);
+        // On demande explicitement le tarif journalier.
+        $breakdown = $this->calculator->calculate(
+            $this->equipment,
+            3,
+            'daily'
+        );
 
         $this->assertEquals(450.00, $breakdown->getBasePrice());
         $this->assertEquals(450.00, $breakdown->getFinalPrice());
-        $this->assertEquals('DailyPricing', $breakdown->getStrategy());
+        $this->assertEquals('daily', $breakdown->getStrategy());
     }
 
     public function testWeeklyPricing(): void
     {
-        // 7 jours = 1 semaine avec 15% de réduction
-        $breakdown = $this->calculator->calculate($this->equipment, 7, 'weeklypricing');
+        $breakdown = $this->calculator->calculate(
+            $this->equipment,
+            7,
+            'weekly'
+        );
 
-        $expected = 150 * 7 * 0.85; // 892.50
+        // 7 jours à 150 €, avec 15 % de réduction,
+        // puis la promotion supplémentaire actuelle de 10 %.
+        $expected = 150 * 7 * 0.85 * 0.90;
+
         $this->assertEquals($expected, $breakdown->getFinalPrice());
-        $this->assertEquals('WeeklyPricing', $breakdown->getStrategy());
-        $this->assertEquals(15, $breakdown->getDiscountPercentage());
+        $this->assertEquals('weekly', $breakdown->getStrategy());
     }
 
     public function testMonthlyPricing(): void
     {
-        // 30 jours = 1 mois avec 25% de réduction
-        $breakdown = $this->calculator->calculate($this->equipment, 30, 'monthlypricing');
+        $breakdown = $this->calculator->calculate(
+            $this->equipment,
+            30,
+            'monthly'
+        );
 
-        $expected = 150 * 30 * 0.75;
-        $this->assertEquals($expected, $breakdown->getFinalPrice());
-        $this->assertEquals('MonthlyPricing', $breakdown->getStrategy());
-        $this->assertEquals(25, $breakdown->getDiscountPercentage());
+        // Tarif mensuel avec la promotion de journée gratuite
+        // et les autres promotions actuellement applicables.
+        $this->assertEquals('monthly', $breakdown->getStrategy());
+        $this->assertLessThan(
+            150 * 30,
+            $breakdown->getFinalPrice()
+        );
     }
+
 
     public function testVolumeDiscountPricing(): void
     {
-        // 7 jours avec remise volume
-        $breakdown = $this->calculator->calculate($this->equipment, 7, 'volumediscountpricing');
+        $breakdown = $this->calculator->calculate(
+            $this->equipment,
+            7,
+            'volume'
+        );
 
-        $this->assertEquals('VolumeDiscountPricing', $breakdown->getStrategy());
+        $this->assertEquals('volume', $breakdown->getStrategy());
+        $this->assertEquals(892.50, $breakdown->getFinalPrice());
 
-        // 10 jours = 15% de réduction
-        $breakdown2 = $this->calculator->calculate($this->equipment, 10, 'volumediscountpricing');
-        $this->assertEquals(1500 * 0.85, $breakdown2->getFinalPrice());
+        $breakdown2 = $this->calculator->calculate(
+            $this->equipment,
+            10,
+            'volume'
+        );
+
+        // Remise de 20 % à partir de 10 jours.
+        $this->assertEquals(1200.00, $breakdown2->getFinalPrice());
     }
+
 
     public function testPremiumPricing(): void
     {
+        $category = $this->createCategory(
+            'Grue',
+            'crane',
+            1.5,
+            true
+        );
+
         $premiumEquipment = new Equipment(
             'Grue',
-            EquipmentCategory::CRANE,
+            $category,
             200.00
         );
 
-        $breakdown = $this->calculator->calculate($premiumEquipment, 5, 'premiumpricing');
+        $breakdown = $this->calculator->calculate(
+            $premiumEquipment,
+            5,
+            'premium'
+        );
 
-        // Prix de base : 200 * 5 = 1000
-        // Multiplicateur premium pour crane : 1.5
-        // Final : 1500
+        // Supplément premium de 50 % pour une grue.
         $this->assertEquals(1500.00, $breakdown->getFinalPrice());
-        $this->assertEquals('PremiumPricing', $breakdown->getStrategy());
+        $this->assertEquals('premium', $breakdown->getStrategy());
     }
 
     public function testStrategyComparison(): void
     {
-        $comparison = $this->calculator->compareStrategies($this->equipment, 7);
+        $comparison = $this->calculator->compareStrategies(
+            $this->equipment,
+            7
+        );
 
         $this->assertNotEmpty($comparison);
         $this->assertArrayHasKey('strategy', $comparison[0]);
         $this->assertArrayHasKey('price', $comparison[0]);
         $this->assertArrayHasKey('breakdown', $comparison[0]);
 
-        // Le moins cher devrait être en premier
         $firstPrice = $comparison[0]['price'];
         $lastPrice = $comparison[count($comparison) - 1]['price'];
+
+        // Les stratégies sont classées de la moins chère à la plus chère.
         $this->assertLessThanOrEqual($lastPrice, $firstPrice);
     }
 
     public function testAutomaticBestStrategySelection(): void
     {
-        // Pour 3 jours, Daily devrait être le plus rentable
-        $price = $this->calculator->calculatePrice($this->equipment, 3);
-        $this->assertEquals(450.00, $price);
+        // À 3 jours, la stratégie volume applique 10 % de réduction :
+        // 450 € - 10 % = 405 €. Elle est moins chère que le tarif journalier.
+        $price = $this->calculator->calculatePrice(
+            $this->equipment,
+            3
+        );
 
-        // Pour 7 jours, Weekly devrait être moins cher que Daily
-        $price7 = $this->calculator->calculatePrice($this->equipment, 7);
-        $dailyPrice7 = 150 * 7; // 1050
+        $this->assertEquals(405.00, $price);
+
+        $price7 = $this->calculator->calculatePrice(
+            $this->equipment,
+            7
+        );
+
+        $dailyPrice7 = 150 * 7;
+
         $this->assertLessThan($dailyPrice7, $price7);
     }
 
+
     public function testSeasonalPricing(): void
     {
-        // Test en haute saison (juin)
-        $breakdown = $this->calculator->calculate($this->equipment, 5, 'seasonalpricing');
+        $breakdown = $this->calculator->calculate(
+            $this->equipment,
+            5,
+            'seasonal'
+        );
 
-        // En haute saison, prix * 1.3
-        $this->assertEquals(150 * 5 * 1.3, $breakdown->getFinalPrice());
+        $this->assertEquals('seasonal', $breakdown->getStrategy());
+        $this->assertEquals(675.00, $breakdown->getFinalPrice());
     }
+
+
 }

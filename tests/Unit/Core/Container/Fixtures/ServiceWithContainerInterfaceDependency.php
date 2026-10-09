@@ -1,0 +1,1 @@
+<?php namespace Tests\Unit\Core\Container\Fixtures; use App\Core\Container\ContainerInterface; class ServiceWithContainerInterfaceDependency { public function __construct( private ContainerInterface $container ) {} public function getContainer(): ContainerInterface { return $this->container; } }

@@ -1,16 +1,84 @@
 <?php
+
 namespace App\Core\Container;
+
+use App\Core\Discovery\ClassScanner;
+use RuntimeException;
 
 class Container implements ContainerInterface
 {
     private array $definitions = [];
     private array $instances = [];
     private array $parameters = [];
+    private ClassScanner $classScanner;
+
+    /**
+     * Répertoires et namespaces dans lesquels rechercher
+     * les implémentations d'interfaces.
+     */
+    private array $discoveryPaths = [];
+
+    public function __construct(?ClassScanner $classScanner = null)
+    {
+        $this->classScanner = $classScanner ?? new ClassScanner();
+
+        $srcDirectory = dirname(__DIR__, 2);
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Core/Container',
+            'App\\Core\\Container'
+        );
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Core/Database',
+            'App\\Core\\Database'
+        );
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Core/EventDispatcher',
+            'App\\Core\\EventDispatcher'
+        );
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Core/Router',
+            'App\\Core\\Router'
+        );
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Repository',
+            'App\\Repository'
+        );
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Observer',
+            'App\\Observer'
+        );
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Service/PricingStrategy',
+            'App\\Service\\PricingStrategy'
+        );
+
+        $this->registerDiscoveryPath(
+            $srcDirectory . '/Service/PricingStrategy/Promotion',
+            'App\\Service\\PricingStrategy\\Promotion'
+        );
+    }
+
+    public function registerDiscoveryPath(
+        string $directory,
+        string $namespace
+    ): void {
+        $this->discoveryPaths[] = [
+            'directory' => $directory,
+            'namespace' => $namespace,
+        ];
+    }
 
     public function set(string $id, callable|object $definition): void
     {
         $this->definitions[$id] = $definition;
-        // Si c'est déjà une instance, on la stocke directement
+
         if (is_object($definition) && !is_callable($definition)) {
             $this->instances[$id] = $definition;
         }
@@ -18,39 +86,61 @@ class Container implements ContainerInterface
 
     public function get(string $id): object
     {
-        // 1. Si déjà instancié, retourner l'instance
         if (isset($this->instances[$id])) {
             return $this->instances[$id];
         }
 
-        // 2. Si définition existe, l'exécuter
         if (isset($this->definitions[$id])) {
             $definition = $this->definitions[$id];
 
-            if (is_callable($definition)) {
-                $instance = $definition($this);
-            } else {
-                $instance = $definition;
+            $instance = is_callable($definition)
+                ? $definition($this)
+                : $definition;
+
+            if (!is_object($instance)) {
+                throw new RuntimeException(
+                    "Definition for {$id} did not return an object"
+                );
             }
 
-            // Mettre en cache
             $this->instances[$id] = $instance;
+
             return $instance;
         }
 
-        // 3. Auto-wiring : tentative de création automatique
         if (class_exists($id)) {
             $instance = $this->autoWire($id);
             $this->instances[$id] = $instance;
+
             return $instance;
         }
 
-        throw new \RuntimeException("Service {$id} not found");
+        if (interface_exists($id)) {
+            $implementations = $this->findImplementations($id);
+
+            if (count($implementations) === 1) {
+                $instance = $this->get($implementations[0]);
+                $this->instances[$id] = $instance;
+
+                return $instance;
+            }
+
+            if (count($implementations) > 1) {
+                throw new RuntimeException(
+                    "Multiple implementations found for {$id}: "
+                    . implode(', ', $implementations)
+                );
+            }
+        }
+
+        throw new RuntimeException("Service {$id} not found");
     }
 
     public function has(string $id): bool
     {
-        return isset($this->definitions[$id]) || class_exists($id);
+        return isset($this->definitions[$id])
+            || class_exists($id)
+            || interface_exists($id);
     }
 
     public function setParameter(string $name, mixed $value): void
@@ -60,44 +150,100 @@ class Container implements ContainerInterface
 
     public function getParameter(string $name): mixed
     {
-        if (!isset($this->parameters[$name])) {
-            throw new \RuntimeException("Parameter {$name} not found");
+        if (!array_key_exists($name, $this->parameters)) {
+            throw new RuntimeException("Parameter {$name} not found");
         }
+
         return $this->parameters[$name];
     }
 
-    /**
-     * Auto-wiring : résolution automatique des dépendances
-     */
     private function autoWire(string $className): object
     {
         $reflection = new \ReflectionClass($className);
 
         if (!$reflection->isInstantiable()) {
-            throw new \RuntimeException("Class {$className} is not instantiable");
+            throw new RuntimeException(
+                "Class {$className} is not instantiable"
+            );
         }
 
         $constructor = $reflection->getConstructor();
 
-        if (!$constructor) {
+        if ($constructor === null) {
             return new $className();
         }
 
-        $parameters = $constructor->getParameters();
         $dependencies = [];
 
-        foreach ($parameters as $parameter) {
+        foreach ($constructor->getParameters() as $parameter) {
             $type = $parameter->getType();
 
-            if (!$type || $type->isBuiltin()) {
-                throw new \RuntimeException("Cannot resolve parameter {$parameter->getName()}");
+            if ($type === null || $type->isBuiltin()) {
+                if ($parameter->isDefaultValueAvailable()) {
+                    $dependencies[] = $parameter->getDefaultValue();
+                    continue;
+                }
+
+                throw new RuntimeException(
+                    "Cannot resolve parameter {$parameter->getName()} "
+                    . "of {$className}"
+                );
+            }
+
+            if (!$type instanceof \ReflectionNamedType) {
+                throw new RuntimeException(
+                    "Unsupported parameter type for {$parameter->getName()} "
+                    . "of {$className}"
+                );
             }
 
             $dependencyName = $type->getName();
-            $dependencies[] = $this->get($dependencyName);
+
+            try {
+                $dependencies[] = $this->get($dependencyName);
+            } catch (RuntimeException $e) {
+                if ($parameter->allowsNull()) {
+                    $dependencies[] = null;
+                    continue;
+                }
+
+                if ($parameter->isDefaultValueAvailable()) {
+                    $dependencies[] = $parameter->getDefaultValue();
+                    continue;
+                }
+
+                throw $e;
+            }
         }
 
         return $reflection->newInstanceArgs($dependencies);
+    }
+
+    private function findImplementations(string $interface): array
+    {
+        $implementations = [];
+
+        foreach ($this->discoveryPaths as $path) {
+            if (!is_dir($path['directory'])) {
+                continue;
+            }
+
+            $classes = $this->classScanner->findImplementations(
+                $path['directory'],
+                $path['namespace'],
+                $interface
+            );
+
+            foreach ($classes as $class) {
+                $reflection = new \ReflectionClass($class);
+
+                if (!$reflection->isAbstract()) {
+                    $implementations[] = $class;
+                }
+            }
+        }
+
+        return array_values(array_unique($implementations));
     }
 
     public function getImplementations(
@@ -105,28 +251,17 @@ class Container implements ContainerInterface
         string $directory,
         string $namespace
     ): array {
-        $implementations = [];
+        $classes = $this->classScanner->findImplementations(
+            $directory,
+            $namespace,
+            $interface
+        );
 
-        foreach (glob($directory . '/*.php') as $file) {
-            $className = $namespace . '\\' . basename($file, '.php');
-
-            if (!class_exists($className)) {
-                continue;
-            }
-
-            if (!is_subclass_of($className, $interface)) {
-                continue;
-            }
-
-            $reflection = new \ReflectionClass($className);
-
-            if ($reflection->isAbstract()) {
-                continue;
-            }
-
-            $implementations[] = $className;
-        }
-
-        return $implementations;
+        return array_values(array_filter(
+            $classes,
+            static fn (string $class): bool =>
+            !(new \ReflectionClass($class))->isAbstract()
+        ));
     }
 }
+

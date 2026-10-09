@@ -300,18 +300,19 @@ class RentalRepository extends AbstractRepository implements RentalRepositoryInt
      */
     public function getTopEquipment(int $limit = 10): array
     {
-        $sql = "SELECT 
-                    e.id,
-                    e.name,
-                    e.category,
-                    COUNT(r.id) as rentals_count,
-                    SUM(r.total_price) as total_revenue,
-                    AVG(r.total_price) as avg_revenue
-                FROM equipment e
-                JOIN rentals r ON r.equipment_id = e.id
-                GROUP BY e.id
-                ORDER BY rentals_count DESC
-                LIMIT :limit";
+        $sql = "SELECT
+                e.id,
+                e.name,
+                c.name AS category,
+                COUNT(r.id) AS rentals_count,
+                SUM(r.total_price) AS total_revenue,
+                AVG(r.total_price) AS avg_revenue
+            FROM equipment e
+            JOIN rentals r ON r.equipment_id = e.id
+            LEFT JOIN categories c ON c.id = e.category_id
+            GROUP BY e.id, e.name, c.name
+            ORDER BY rentals_count DESC
+            LIMIT :limit";
 
         return $this->db->query($sql, ['limit' => $limit]);
     }

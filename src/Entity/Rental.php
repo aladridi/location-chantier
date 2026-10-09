@@ -2,20 +2,51 @@
 namespace App\Entity;
 
 use App\Entity\Enum\RentalStatus;
+use App\Attribute\Table;
+use App\Attribute\Column;
+use App\Attribute\Id;
+use App\Attribute\Relation;
 
+#[Table('rentals')]
 class Rental
 {
+    #[Id]
+    #[Column('id')]
     private ?int $id = null;
+
+    #[Relation(Client::class)]
+    #[Column('client_id')]
     private Client $client;
+
+    #[Relation(Equipment::class)]
+    #[Column('equipment_id')]
     private Equipment $equipment;
+
+    #[Column('start_date')]
     private \DateTimeImmutable $startDate;
+
+    #[Column('end_date')]
     private \DateTimeImmutable $endDate;
+
+    #[Column('total_price')]
     private float $totalPrice;
+
+    #[Column('status')]
     private RentalStatus $status;
+
+    #[Column('penalty_amount')]
     private float $penaltyAmount = 0;
+
+    #[Column('returned_at')]
     private ?\DateTimeImmutable $returnedAt = null;
+
+    #[Column('notes')]
     private ?string $notes = null;
+
+    #[Column('created_at')]
     private \DateTimeImmutable $createdAt;
+
+    #[Column('updated_at')]
     private \DateTimeImmutable $updatedAt;
 
     public function __construct(

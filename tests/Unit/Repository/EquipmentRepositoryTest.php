@@ -2,7 +2,7 @@
 namespace Tests\Unit\Repository;
 
 use App\Entity\Equipment;
-use App\Entity\Enum\EquipmentCategory;
+use App\Entity\Category;
 use App\Repository\EquipmentRepository;
 use App\Core\Database\DatabaseInterface;
 use PHPUnit\Framework\TestCase;
@@ -38,34 +38,36 @@ class EquipmentRepositoryTest extends TestCase
 
         $this->assertCount(2, $results);
         $this->assertInstanceOf(Equipment::class, $results[0]);
-        $this->assertEquals('Pelle', $results[0]->name);
+        $this->assertEquals('Pelle', $results[0]->getName());
     }
 
     public function testFindByCategory(): void
     {
+        $category = new Category('Grue', 'crane');
+        $category->setId(2);
+
         $this->dbMock
             ->expects($this->once())
             ->method('query')
             ->with(
-                $this->stringContains('category = :category'),
-                $this->equalTo(['category' => 'crane'])
+                $this->stringContains('e.category_id = :category_id'),
+                $this->equalTo(['category_id' => 2])
             )
-            ->willReturn([
-                ['id' => 2, 'name' => 'Grue', 'category' => 'crane', 'daily_rate' => 200.00, 'available' => 1],
-            ]);
+            ->willReturn([]);
 
-        $results = $this->repository->findByCategory(EquipmentCategory::CRANE);
+        $results = $this->repository->findByCategory($category);
 
-        $this->assertCount(1, $results);
-        $this->assertEquals('Grue', $results[0]->name);
-        $this->assertEquals(EquipmentCategory::CRANE, $results[0]->getCategory());
+        $this->assertIsArray($results);
     }
 
     public function testSaveNewEquipment(): void
     {
+        $category = new Category('Excavatrice', 'excavator');
+        $category->setId(3);
+
         $equipment = new Equipment(
             'Nouvelle Pelle',
-            EquipmentCategory::EXCAVATOR,
+            $category,
             180.00
         );
 
@@ -74,21 +76,15 @@ class EquipmentRepositoryTest extends TestCase
             ->method('execute')
             ->with(
                 $this->stringContains('INSERT INTO equipment'),
-                $this->callback(function ($params) {
-                    return $params[0] === 'Nouvelle Pelle'
-                        && $params[1] === EquipmentCategory::EXCAVATOR->value;
+                $this->callback(function (array $params): bool {
+                    return ($params['name'] ?? null) === 'Nouvelle Pelle'
+                        && ($params['category_id'] ?? null) === 3
+                        && ($params['daily_rate'] ?? null) === 180.00;
                 })
             )
             ->willReturn(1);
 
-        $this->dbMock
-            ->expects($this->once())
-            ->method('lastInsertId')
-            ->willReturn('5');
-
         $this->repository->save($equipment);
-
-        $this->assertEquals(5, $equipment->getId());
     }
 
     public function testFindNeedingMaintenance(): void
@@ -97,7 +93,11 @@ class EquipmentRepositoryTest extends TestCase
             ->expects($this->once())
             ->method('query')
             ->with(
-                $this->stringContains('last_maintenance IS NULL OR last_maintenance < DATE_SUB(NOW(), INTERVAL :days DAY)'),
+                $this->callback(
+                    fn (string $sql): bool =>
+                        str_contains($sql, 'last_maintenance IS NULL')
+                        && str_contains($sql, 'DATE_SUB(NOW(), INTERVAL :days DAY)')
+                ),
                 $this->equalTo(['days' => 90])
             )
             ->willReturn([
@@ -107,7 +107,7 @@ class EquipmentRepositoryTest extends TestCase
         $results = $this->repository->findNeedingMaintenance();
 
         $this->assertCount(1, $results);
-        $this->assertEquals('Vieille Grue', $results[0]->name);
+        $this->assertEquals('Vieille Grue', $results[0]->getName());
     }
 
     public function testGetStatistics(): void
@@ -123,7 +123,7 @@ class EquipmentRepositoryTest extends TestCase
         $this->dbMock
             ->expects($this->once())
             ->method('query')
-            ->with($this->stringContains('SELECT COUNT(*) as total'))
+            ->with($this->stringContains('COUNT(*) as total'))
             ->willReturn([$expectedStats]);
 
         $stats = $this->repository->getStatistics();

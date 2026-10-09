@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Service\PricingStrategy;
 
 use App\Entity\Equipment;
@@ -67,6 +68,7 @@ abstract class AbstractPricingStrategy implements PricingStrategyInterface
 
         return $breakdown;
     }
+
     public function isApplicable(Equipment $equipment, int $days, ?array $context = []): bool
     {
         // Vérifier les jours minimum/maximum
@@ -79,14 +81,14 @@ abstract class AbstractPricingStrategy implements PricingStrategyInterface
 
         // Vérifier les catégories applicables
         if (!empty($this->applicableCategories)) {
-            if (!in_array($equipment->getCategory()->value, $this->applicableCategories)) {
+            if (!in_array($equipment->getCategory()->getSlug(), $this->applicableCategories, true)) {
                 return false;
             }
         }
 
         // Vérifier les catégories blacklistées
         if (!empty($this->blacklistedCategories)) {
-            if (in_array($equipment->getCategory()->value, $this->blacklistedCategories)) {
+            if (in_array($equipment->getCategory()->getSlug(), $this->blacklistedCategories, true)) {
                 return false;
             }
         }
